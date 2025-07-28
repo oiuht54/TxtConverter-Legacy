@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>TartarusCore</groupId>
+    <artifactId>TxtConverter</artifactId>
+    <version>3.0.0</version> <!-- Финальная, рабочая сборка -->
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <javafx.version>21.0.2</javafx.version>
+        <!-- Переменная для нашей чистой, изолированной папки -->
+        <jpackage.input.dir>${project.build.directory}/app-image-input</jpackage.input.dir>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 1. Компилируем код -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+            </plugin>
+
+            <!-- 2. Собираем "Fat Jar" со всеми зависимостями -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>TartarusCore.TxtConverter.Launcher</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 3. КОПИРУЕМ готовый "Fat Jar" В ИЗОЛИРОВАННУЮ ПАПКУ -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-jar-for-jpackage</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Указываем нашу чистую папку как место назначения -->
+                            <outputDirectory>${jpackage.input.dir}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <!-- Берем готовый JAR из папки 'target' -->
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>${project.build.finalName}.jar</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 4. ЗАПУСКАЕМ JPACKAGE, работая ТОЛЬКО с изолированной папкой -->
+            <plugin>
+                <groupId>org.panteleyev</groupId>
+                <artifactId>jpackage-maven-plugin</artifactId>
+                <version>1.5.1</version>
+                <executions>
+                    <execution>
+                        <id>jpackage</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jpackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- ВХОД: Наша чистая папка. Рекурсия невозможна. -->
+                    <input>${jpackage.input.dir}</input>
+
+                    <!-- ВЫХОД: Стандартная папка jpackage. Не пересекается с входом. -->
+                    <destination>${project.build.directory}/jpackage</destination>
+
+                    <name>TxtConverter</name>
+                    <appVersion>${project.version}</appVersion>
+                    <vendor>TartarusCore</vendor>
+                    <mainJar>${project.build.finalName}.jar</mainJar>
+                    <mainClass>TartarusCore.TxtConverter.Launcher</mainClass>
+                    <type>APP_IMAGE</type>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
