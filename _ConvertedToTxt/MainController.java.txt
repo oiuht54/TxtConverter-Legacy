@@ -23,7 +23,6 @@ public class MainController {
 
     private static final String OUTPUT_DIR_NAME = "_ConvertedToTxt";
     private final Map<String, String> presets = new LinkedHashMap<>();
-    private final Map<String, String> ignoredFolderPresets = new LinkedHashMap<>();
 
     private Stage stage;
     private double xOffset = 0;
@@ -35,8 +34,8 @@ public class MainController {
     @FXML private TextArea logArea;
     @FXML private HBox titleBar;
     @FXML private CheckBox generateStructureFileCheckbox;
+    // >>> НОВЫЙ ЭЛЕМЕНТ: Связь с полем для игнорируемых папок <<<
     @FXML private TextField ignoredFoldersField;
-    @FXML private CheckBox generateMergedFileCheckbox;
 
     public void setStage(Stage stage) {
         this.stage = stage;
@@ -47,39 +46,26 @@ public class MainController {
         setupPresets();
         setupPresetListener();
         setupWindowDrag();
+        // >>> Устанавливаем значение по умолчанию для нового поля <<<
+        ignoredFoldersField.setText("Library, Temp, obj, bin, ProjectSettings, Logs, Ignored");
         log("Приложение готово к работе.");
+        log("Папки по умолчанию для игнорирования: Library, Temp, obj, bin, ProjectSettings, Logs");
     }
 
+    // >>> ИЗМЕНЕНИЕ: Добавлен пресет для Unity <<<
     private void setupPresets() {
         presets.put("Вручную", "");
         presets.put("Godot Engine", "gd, tscn, tres, gdshader, godot");
+        // Файлы .unity и .prefab намеренно исключены, как ты и просил.
         presets.put("Unity Engine", "cs, shader, cginc, txt, json, xml, asmdef, asset, inputactions");
         presets.put("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
         presets.put("Web Frontend", "html, css, js, ts, scss, json");
-
-        ignoredFolderPresets.put("Вручную", "");
-        ignoredFolderPresets.put("Godot Engine", ".godot, export_presets");
-        ignoredFolderPresets.put("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings");
-        ignoredFolderPresets.put("Java (Maven/Gradle)", "target, .idea, build");
-        ignoredFolderPresets.put("Web Frontend", "node_modules, dist, build");
-
         presetComboBox.getItems().addAll(presets.keySet());
+        // Выбираем Unity по умолчанию, так как это последнее изменение.
         presetComboBox.getSelectionModel().select("Unity Engine");
     }
 
-    private void setupPresetListener() {
-        presetComboBox.getSelectionModel().selectedItemProperty().addListener((options, oldValue, newValue) -> {
-            if (newValue != null) {
-                extensionsField.setText(presets.get(newValue));
-                ignoredFoldersField.setText(ignoredFolderPresets.get(newValue));
-                log("Выбран пресет '" + newValue + "'. Настройки обновлены.");
-            }
-        });
-        String defaultPreset = presetComboBox.getSelectionModel().getSelectedItem();
-        extensionsField.setText(presets.get(defaultPreset));
-        ignoredFoldersField.setText(ignoredFolderPresets.get(defaultPreset));
-    }
-
+    // >>> ИЗМЕНЕНИЕ: Теперь передаем больше параметров в фоновый поток <<<
     @FXML
     private void handleConvert() {
         String sourceDirPath = sourceDirField.getText();
@@ -96,26 +82,25 @@ public class MainController {
 
         List<String> ignoredFolders = getIgnoredFolders();
         boolean generateStructureFile = generateStructureFileCheckbox.isSelected();
-        boolean generateMergedFile = generateMergedFileCheckbox.isSelected();
 
-        new Thread(() -> convertFilesInBackground(sourceDirPath, extensions, ignoredFolders, generateStructureFile, generateMergedFile)).start();
+        new Thread(() -> convertFilesInBackground(sourceDirPath, extensions, ignoredFolders, generateStructureFile)).start();
     }
 
-    private void convertFilesInBackground(String sourceDirPath, List<String> extensions, List<String> ignoredFolders, boolean generateStructureFile, boolean generateMergedFile) {
+    // >>> ГЛАВНЫЙ ИЗМЕНЕННЫЙ МЕТОД: Добавлена логика игнорирования папок <<<
+    private void convertFilesInBackground(String sourceDirPath, List<String> extensions, List<String> ignoredFolders, boolean generateStructureFile) {
         Platform.runLater(() -> logArea.clear());
         log("Начало конвертации...");
         if (!ignoredFolders.isEmpty()) {
             log("Игнорируются папки: " + String.join(", ", ignoredFolders));
         }
         log("Файлы .md будут скопированы без изменений.");
-        if (generateStructureFile) log("Генерация файла структуры включена.");
-        if (generateMergedFile) log("Генерация единого файла включена.");
+        if (generateStructureFile) {
+            log("Генерация файла структуры включена.");
+        }
 
         Path sourcePath = Paths.get(sourceDirPath);
         Path outputPath = sourcePath.resolve(OUTPUT_DIR_NAME);
         List<Path> processedFileRelativePaths = new ArrayList<>();
-        // >>> ИЗМЕНЕНИЕ: Вместо списка используем карту для хранения пары "оригинал -> копия" <<<
-        Map<Path, Path> processedFilesMap = new LinkedHashMap<>();
 
         try {
             prepareOutputDirectory(outputPath);
@@ -123,17 +108,27 @@ public class MainController {
             try (var stream = Files.walk(sourcePath)) {
                 List<Path> filesToConvert = stream
                         .filter(Files::isRegularFile)
+                        // Фильтр 1: Не трогаем нашу же выходную папку
                         .filter(p -> !p.startsWith(outputPath))
+                        // Фильтр 2: Проверяем, не находится ли файл в игнорируемой папке
                         .filter(path -> {
-                            if (ignoredFolders.isEmpty()) return true;
-                            for (Path part : sourcePath.relativize(path)) {
-                                if (ignoredFolders.contains(part.toString().toLowerCase())) return false;
+                            if (ignoredFolders.isEmpty()) {
+                                return true; // Если список игнора пуст, пропускаем все.
                             }
-                            return true;
+                            // Проверяем каждую часть пути (каждую папку)
+                            for (Path part : sourcePath.relativize(path)) {
+                                if (ignoredFolders.contains(part.toString().toLowerCase())) {
+                                    return false; // Нашли игнорируемую папку в пути, файл пропускаем.
+                                }
+                            }
+                            return true; // Путь чист.
                         })
+                        // Фильтр 3: Проверяем расширения, как и раньше
                         .filter(p -> {
                             String fileName = p.getFileName().toString().toLowerCase();
-                            if (fileName.endsWith(".md")) return true;
+                            if (fileName.endsWith(".md")) {
+                                return true;
+                            }
                             int dotIndex = fileName.lastIndexOf('.');
                             if (dotIndex > 0) {
                                 String extension = fileName.substring(dotIndex + 1);
@@ -164,17 +159,10 @@ public class MainController {
                     log("Скопировано: " + sourceFileName + " -> " + destFileName);
 
                     processedFileRelativePaths.add(sourcePath.relativize(sourceFile));
-                    // >>> ИЗМЕНЕНИЕ: Сохраняем пару путей в карту <<<
-                    processedFilesMap.put(sourceFile, destFile);
                 }
 
                 if (generateStructureFile && !processedFileRelativePaths.isEmpty()) {
                     generateStructureReport(outputPath, sourcePath.getFileName().toString(), processedFileRelativePaths);
-                }
-
-                // >>> ИЗМЕНЕНИЕ: Передаем в функцию карту, а не список <<<
-                if (generateMergedFile && !processedFilesMap.isEmpty()) {
-                    generateMergedFile(outputPath, processedFilesMap);
                 }
 
                 log("\n====================\nКОНВЕРТАЦИЯ ЗАВЕРШЕНА\n====================");
@@ -187,40 +175,7 @@ public class MainController {
         }
     }
 
-    // >>> ИЗМЕНЕНИЕ: Метод теперь принимает карту, а не список <<<
-    private void generateMergedFile(Path outputPath, Map<Path, Path> processedFilesMap) throws IOException {
-        log("Создание единого файла...");
-        Path mergedFile = outputPath.resolve("_MergedOutput.txt");
-        StringBuilder mergedContent = new StringBuilder();
-
-        mergedContent.append("Единый файл, сгенерированный TxtConverter\n");
-        mergedContent.append("Дата генерации: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
-
-        // >>> ИЗМЕНЕНИЕ: Итерируемся по записям карты <<<
-        for (Map.Entry<Path, Path> entry : processedFilesMap.entrySet()) {
-            Path originalPath = entry.getKey();
-            Path destinationPath = entry.getValue();
-
-            mergedContent.append("======================================================================\n");
-            // >>> ИЗМЕНЕНИЕ: Используем имя ОРИГИНАЛЬНОГО файла для заголовка <<<
-            mergedContent.append("--- FILE: ").append(originalPath.getFileName()).append(" ---\n");
-            mergedContent.append("======================================================================\n\n");
-
-            try {
-                // >>> ИЗМЕНЕНИЕ: Читаем содержимое из НОВОГО файла <<<
-                String content = Files.readString(destinationPath, StandardCharsets.UTF_8);
-                mergedContent.append(content).append("\n\n");
-            } catch (IOException e) {
-                mergedContent.append("!!! ОШИБКА ЧТЕНИЯ ФАЙЛА: ").append(e.getMessage()).append(" !!!\n\n");
-                log("Ошибка чтения файла " + destinationPath.getFileName() + " при создании единого файла.");
-            }
-        }
-
-        Files.writeString(mergedFile, mergedContent.toString(), StandardCharsets.UTF_8);
-        log("Единый файл успешно создан: " + mergedFile.getFileName());
-    }
-
-    // Остальные методы без изменений...
+    // >>> НОВЫЙ МЕТОД для получения списка игнорируемых папок <<<
     private List<String> getIgnoredFolders() {
         String rawText = ignoredFoldersField.getText();
         if (rawText == null || rawText.isBlank()) {
@@ -233,6 +188,7 @@ public class MainController {
                 .collect(Collectors.toList());
     }
 
+    // Остальные методы без изменений...
     private void setupWindowDrag() {
         titleBar.setOnMousePressed(event -> {
             xOffset = event.getSceneX();
@@ -254,6 +210,16 @@ public class MainController {
     @FXML
     private void handleClose() {
         Platform.exit();
+    }
+
+    private void setupPresetListener() {
+        presetComboBox.getSelectionModel().selectedItemProperty().addListener((options, oldValue, newValue) -> {
+            if (newValue != null && !newValue.equals("Вручную")) {
+                extensionsField.setText(presets.get(newValue));
+                log("Выбран пресет '" + newValue + "'. Расширения установлены.");
+            }
+        });
+        extensionsField.setText(presets.get(presetComboBox.getSelectionModel().getSelectedItem()));
     }
 
     @FXML

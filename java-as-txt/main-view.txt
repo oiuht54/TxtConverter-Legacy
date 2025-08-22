@@ -58,6 +58,8 @@
                                        HBox.hgrow="ALWAYS"/>
                         </children>
                     </HBox>
+
+                    <!-- >>> НОВОЕ ПОЛЕ ДЛЯ ИГНОРИРУЕМЫХ ПАПОК <<< -->
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <children>
                             <Label text="Игнорируемые папки (через запятую):" HBox.hgrow="NEVER"/>
@@ -65,10 +67,8 @@
                                        HBox.hgrow="ALWAYS"/>
                         </children>
                     </HBox>
-                    <CheckBox fx:id="generateStructureFileCheckbox" selected="true" text="Создавать файл структуры (_FileStructure.md)"/>
 
-                    <!-- >>> НОВЫЙ ЧЕКБОКС ДЛЯ ЕДИНОГО ФАЙЛА <<< -->
-                    <CheckBox fx:id="generateMergedFileCheckbox" text="Создавать единый файл со всем кодом (_MergedOutput.txt)"/>
+                    <CheckBox fx:id="generateStructureFileCheckbox" selected="true" text="Создавать файл структуры (_FileStructure.md)"/>
 
                     <Button fx:id="convertBtn" maxWidth="Infinity" onAction="#handleConvert" text="НАЧАТЬ КОНВЕРТАЦИЮ"/>
                 </children>
