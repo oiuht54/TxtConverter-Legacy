@@ -4,7 +4,7 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle; // <<< ИМПОРТИРУЕМ StageStyle
+import javafx.stage.StageStyle;
 
 import java.io.IOException;
 import java.net.URL;
@@ -21,20 +21,17 @@ public class TxtConverterApp extends Application {
         }
 
         FXMLLoader fxmlLoader = new FXMLLoader(fxmlLocation);
-        Scene scene = new Scene(fxmlLoader.load(), 600, 450); // Немного увеличим высоту для заголовка
+        Scene scene = new Scene(fxmlLoader.load(), 600, 500); // Немного увеличим высоту для новых элементов
         scene.getStylesheets().add(getClass().getResource("styles.css").toExternalForm());
 
-        // >>> ГЛАВНОЕ ИЗМЕНЕНИЕ: Убираем стандартную рамку окна <<<
         stage.initStyle(StageStyle.UNDECORATED);
 
-        // Передаем stage в контроллер, чтобы он мог управлять окном
         MainController controller = fxmlLoader.getController();
         controller.setStage(stage);
 
         stage.setTitle("TXT File Converter");
-        // Минимальные размеры теперь не так актуальны, но оставим
         stage.setMinWidth(600);
-        stage.setMinHeight(450);
+        stage.setMinHeight(500);
         stage.setScene(scene);
         stage.show();
     }

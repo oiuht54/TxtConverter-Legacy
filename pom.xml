@@ -6,7 +6,6 @@
 
     <groupId>TartarusCore</groupId>
     <artifactId>TxtConverter</artifactId>
-    <!-- >>> Версия обновлена <<< -->
     <version>3.1.0</version>
 
     <properties>
@@ -17,7 +16,6 @@
         <jpackage.input.dir>${project.build.directory}/app-image-input</jpackage.input.dir>
     </properties>
 
-    <!-- ... остальная часть pom.xml без изменений ... -->
     <dependencies>
         <dependency>
             <groupId>org.openjfx</groupId>

@@ -63,12 +63,19 @@
                             <Label text="Игнорируемые папки (через запятую):" HBox.hgrow="NEVER"/>
                             <TextField fx:id="ignoredFoldersField" promptText="Например: Library, Temp, obj"
                                        HBox.hgrow="ALWAYS"/>
+                            <!-- >>> НОВАЯ КНОПКА ПЕРЕСКАНИРОВАНИЯ <<< -->
+                            <Button fx:id="rescanBtn" onAction="#handleRescan" text="Пересканировать"/>
                         </children>
                     </HBox>
-                    <CheckBox fx:id="generateStructureFileCheckbox" selected="true" text="Создавать файл структуры (_FileStructure.md)"/>
 
-                    <!-- >>> НОВЫЙ ЧЕКБОКС ДЛЯ ЕДИНОГО ФАЙЛА <<< -->
-                    <CheckBox fx:id="generateMergedFileCheckbox" text="Создавать единый файл со всем кодом (_MergedOutput.txt)"/>
+                    <!-- >>> ИЗМЕНЕНИЕ: Опция структуры проекта теперь выключена по умолчанию <<< -->
+                    <CheckBox fx:id="generateStructureFileCheckbox" text="Создавать файл структуры (_FileStructure.md)"/>
+
+                    <!-- >>> ОБНОВЛЕННАЯ СЕКЦИЯ ДЛЯ ЕДИНОГО ФАЙЛА <<< -->
+                    <HBox alignment="CENTER_LEFT" spacing="10.0">
+                        <CheckBox fx:id="generateMergedFileCheckbox" selected="true" text="Создавать единый файл со всем кодом (_MergedOutput.txt)"/>
+                        <Button fx:id="selectFilesBtn" onAction="#handleSelectFiles" text="Выбрать файлы..."/>
+                    </HBox>
 
                     <Button fx:id="convertBtn" maxWidth="Infinity" onAction="#handleConvert" text="НАЧАТЬ КОНВЕРТАЦИЮ"/>
                 </children>

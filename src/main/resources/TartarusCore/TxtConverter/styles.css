@@ -1,91 +1,42 @@
-/* Основной стиль окна и фона */
 .root {
-    -fx-base: #3c3f41; /* Базовый цвет для элементов управления */
-    -fx-background: #2b2b2b; /* Основной фон окна */
-    -fx-control-inner-background: #3c3f41; /* Внутренний фон полей ввода */
-    -fx-focus-color: #4a6da7; /* Цвет обводки при фокусе */
-    -fx-faint-focus-color: #4a6da722; /* Цвет "тени" при фокусе */
-    /* >>> НОВОЕ: Добавляем рамку для окна <<< */
-    -fx-border-color: #555555;
-    -fx-border-width: 1;
-}
-
-/* >>> НОВЫЕ СТИЛИ ДЛЯ КАСТОМНОГО ЗАГОЛОВКА <<< */
-.custom-title-bar {
-    -fx-background-color: #3c3f41;
-    -fx-padding: 5 10 5 10;
-    -fx-cursor: move; /* Меняем курсор на "перемещение" при наведении */
-}
-
-.title-label {
-    -fx-text-fill: #e0e0e0;
-    -fx-font-weight: bold;
-}
-
-.window-button {
-    -fx-background-color: transparent;
+    -fx-background-color: #2b2b2b;
     -fx-text-fill: #bbbbbb;
-    -fx-font-size: 14px;
-    -fx-font-weight: bold;
-    -fx-padding: 0 10;
-    -fx-min-width: 40px;
-    -fx-min-height: 30px;
+    -fx-font-family: "Segoe UI", Arial, sans-serif;
 }
 
-.window-button:hover {
-    -fx-background-color: #5a5e60;
-}
-
-.close-button:hover {
-    -fx-background-color: #e81123;
-    -fx-text-fill: white;
-}
-/* >>> КОНЕЦ НОВЫХ СТИЛЕЙ <<< */
-
-/* Стили для всех меток (Label) */
 .label {
-    -fx-text-fill: #bbbbbb; /* Светло-серый цвет текста */
-    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-text-fill: #bbbbbb;
 }
 
-/* Стили для кнопок */
 .button {
-    -fx-background-color: #4e5254;
-    -fx-text-fill: #e0e0e0;
-    -fx-font-weight: bold;
-    -fx-background-radius: 4;
-    -fx-cursor: default;
+    -fx-background-color: #3c3f41;
+    -fx-text-fill: #bbbbbb;
+    -fx-border-color: #555555;
+    -fx-border-width: 1px;
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
 }
 
 .button:hover {
-    -fx-background-color: #5a5e60;
+    -fx-background-color: #4f5254;
 }
 
 .button:pressed {
-    -fx-background-color: #444749;
+    -fx-background-color: #353739;
 }
 
-/* Стили для полей ввода (TextField, TextArea) */
-.text-field, .text-area {
-    -fx-text-fill: #e0e0e0;
-    -fx-background-color: -fx-control-inner-background;
-    -fx-background-insets: 0;
+.text-field, .text-area, .combo-box {
+    -fx-background-color: #3c3f41;
+    -fx-text-fill: #bbbbbb;
+    -fx-prompt-text-fill: #777777;
     -fx-border-color: #555555;
-    -fx-border-width: 1;
+    -fx-border-width: 1px;
+    -fx-background-radius: 3;
     -fx-border-radius: 3;
-    -fx-cursor: text;
 }
 
 .text-area .content {
-    -fx-background-color: -fx-control-inner-background;
-}
-
-/* Стили для выпадающего списка (ComboBox) */
-.combo-box {
-    -fx-background-color: #4e5254;
-    -fx-border-color: #555555;
-    -fx-border-radius: 3;
-    -fx-cursor: default;
+    -fx-background-color: #3c3f41;
 }
 
 .combo-box .list-cell {
@@ -94,26 +45,76 @@
 }
 
 .combo-box .list-cell:hover {
-    -fx-background-color: #4a6da7;
-    -fx-text-fill: white;
+    -fx-background-color: #4f5254;
 }
 
-.combo-box .list-cell:selected {
-    -fx-background-color: #4a6da7;
-    -fx-text-fill: white;
+.check-box .box {
+    -fx-background-color: #3c3f41;
+    -fx-border-color: #555555;
 }
 
-/* Стили для полосы прокрутки */
-.scroll-bar:vertical, .scroll-bar:horizontal {
-    -fx-background-color: #2b2b2b;
+.check-box:selected .mark {
+    -fx-background-color: #4e8dff;
 }
 
-.scroll-bar .thumb {
+.check-box .text {
+    -fx-fill: #bbbbbb;
+}
+
+.custom-title-bar {
+    -fx-background-color: #3c3f41;
+    -fx-padding: 5 10 5 10;
+    -fx-cursor: move;
+}
+
+.title-label {
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+}
+
+.window-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.window-button:hover {
     -fx-background-color: #55595c;
-    -fx-background-insets: 2;
-    -fx-background-radius: 4;
 }
 
-.scroll-bar .thumb:hover {
-    -fx-background-color: #6a6e71;
+.close-button:hover {
+    -fx-background-color: #e81123;
+    -fx-text-fill: white;
+}
+
+.tree-view {
+    -fx-background-color: #313335;
+    -fx-border-color: #454545;
+}
+
+.tree-cell {
+    -fx-padding: 5 10 5 10;
+    -fx-background-color: transparent;
+    -fx-text-fill: #bbbbbb;
+}
+
+.tree-cell:hover {
+    -fx-background-color: #3c3f41;
+}
+
+.tree-cell:selected {
+    -fx-background-color: #4b6eaf;
+}
+
+/* >>> ОБНОВЛЕННЫЙ СТИЛЬ "BUBBLE" ДЛЯ КАТЕГОРИЙ <<< */
+/* Этот класс теперь программно применяется к ячейкам-категориям */
+.category-tree-item {
+    -fx-background-color: #252527;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12 8 12;
+    /* Имитируем отступ снизу для разделения "пузырей" */
+    -fx-background-insets: 0 0 5 0;
 }
