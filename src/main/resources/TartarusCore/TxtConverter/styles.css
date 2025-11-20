@@ -1,3 +1,4 @@
+/* --- FILE: styles.css (Исправленный и дополненный) --- */
 /* Основная палитра:
    Фон: #1e1e1e (Глубокий темный)
    Панели/Инпуты: #252526 / #333333
@@ -47,7 +48,6 @@
 }
 
 /* --- ГЛАВНАЯ КНОПКА (Start Conversion) --- */
-/* Мы обращаемся к ней по ID */
 #convertBtn {
     -fx-background-color: #3a96ff;
     -fx-text-fill: #ffffff;
@@ -120,7 +120,7 @@
 
 .check-box:selected .mark {
     -fx-background-color: white;
-    -fx-shape: "M 0 0 L 4 4 L 9 -5"; 
+    -fx-shape: "M 0 0 L 4 4 L 9 -5";
 }
 
 .check-box:selected .box {
@@ -134,7 +134,7 @@
 
 /* --- TITLE BAR --- */
 .custom-title-bar {
-    -fx-background-color: #2d2d30; /* Чуть светлее фона */
+    -fx-background-color: #2d2d30;
     -fx-padding: 8 10 8 10;
     -fx-border-color: transparent transparent #333333 transparent;
     -fx-cursor: move;
@@ -193,7 +193,7 @@
 }
 
 .tree-cell:selected {
-    -fx-background-color: #264f78; /* Темно-синий фон выделения, как в VS Code */
+    -fx-background-color: #264f78;
     -fx-text-fill: white;
 }
 
@@ -207,4 +207,5 @@
     -fx-border-color: #454545;
     -fx-border-radius: 4;
     -fx-padding: 6 10 6 10;
-    -f
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 5, 0, 0, 1);
+}
