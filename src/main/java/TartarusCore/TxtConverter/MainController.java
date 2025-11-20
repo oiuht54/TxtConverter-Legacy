@@ -9,14 +9,12 @@ import javafx.scene.layout.HBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle; // <<< ИМПОРТИРУЕМ StageStyle
+import javafx.stage.StageStyle;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,10 +28,12 @@ public class MainController {
     private double xOffset = 0;
     private double yOffset = 0;
 
+    // Данные состояния
     private List<Path> allFoundFiles = new ArrayList<>();
     private Set<Path> filesSelectedForMerge = new HashSet<>();
 
     @FXML private TextField sourceDirField;
+    @FXML private Button selectSourceBtn;
     @FXML private TextField extensionsField;
     @FXML private ComboBox<String> presetComboBox;
     @FXML private TextArea logArea;
@@ -44,6 +44,10 @@ public class MainController {
     @FXML private Button rescanBtn;
     @FXML private Button selectFilesBtn;
     @FXML private Button convertBtn;
+
+    // Новые элементы UI
+    @FXML private ProgressBar progressBar;
+    @FXML private Label statusLabel;
 
     public void setStage(Stage stage) {
         this.stage = stage;
@@ -61,6 +65,8 @@ public class MainController {
 
         log("Приложение готово к работе.");
     }
+
+    // --- UI SETUP & PRESETS ---
 
     private void setupPresets() {
         presets.put("Вручную", "");
@@ -95,167 +101,13 @@ public class MainController {
         ignoredFoldersField.setText(ignoredFolderPresets.get(defaultPreset));
     }
 
-    @FXML
-    private void handleSelectFiles() {
-        if (allFoundFiles.isEmpty()) {
-            log("Сначала необходимо просканировать проект. Измените настройки и нажмите 'Пересканировать'.");
-            return;
-        }
-
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("selection-dialog.fxml"));
-            Stage dialogStage = new Stage();
-            dialogStage.setTitle("Выбор файлов для _MergedOutput.txt");
-            dialogStage.initModality(Modality.WINDOW_MODAL);
-            dialogStage.initOwner(stage);
-
-            // >>> ИЗМЕНЕНИЕ: Применяем кастомный стиль окна <<<
-            dialogStage.initStyle(StageStyle.UNDECORATED);
-
-            Scene scene = new Scene(loader.load());
-            scene.getStylesheets().add(getClass().getResource("styles.css").toExternalForm());
-            dialogStage.setScene(scene);
-
-            SelectionController controller = loader.getController();
-            controller.setDialogStage(dialogStage);
-            // Передаем относительный путь для более чистого отображения
-            controller.initData(allFoundFiles, filesSelectedForMerge, Paths.get(sourceDirField.getText()));
-
-            dialogStage.showAndWait();
-
-            controller.getSelectedFiles().ifPresent(selected -> {
-                this.filesSelectedForMerge = selected;
-                log("Список файлов для единого отчета обновлен. Выбрано: " + selected.size() + " из " + allFoundFiles.size());
-            });
-
-        } catch (IOException e) {
-            log("КРИТИЧЕСКАЯ ОШИБКА: Не удалось открыть окно выбора файлов.");
-            e.printStackTrace();
-        }
+    private void setupWindowDrag() {
+        titleBar.setOnMousePressed(event -> { xOffset = event.getSceneX(); yOffset = event.getSceneY(); });
+        titleBar.setOnMouseDragged(event -> { stage.setX(event.getScreenX() - xOffset); stage.setY(event.getScreenY() - yOffset); });
     }
 
-    // Остальной код MainController.java остается без изменений
-    private void scanProject() {
-        String sourceDirPath = sourceDirField.getText();
-        if (sourceDirPath == null || sourceDirPath.isBlank()) {
-            log("Ошибка: Сначала выберите папку с исходниками!");
-            return;
-        }
+    // --- EVENT HANDLERS ---
 
-        Platform.runLater(() -> {
-            log("Сканирование проекта...");
-            updateButtonStates();
-        });
-
-        List<String> extensions = getExtensions();
-        List<String> ignoredFolders = getIgnoredFolders();
-        Path sourcePath = Paths.get(sourceDirPath);
-        Path outputPath = sourcePath.resolve(OUTPUT_DIR_NAME);
-
-        try (var stream = Files.walk(sourcePath)) {
-            List<Path> foundFiles = stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> !p.startsWith(outputPath))
-                    .filter(path -> {
-                        if (ignoredFolders.isEmpty()) return true;
-                        for (Path part : sourcePath.relativize(path)) {
-                            if (ignoredFolders.contains(part.toString().toLowerCase())) return false;
-                        }
-                        return true;
-                    })
-                    .filter(p -> {
-                        String fileName = p.getFileName().toString().toLowerCase();
-                        if (fileName.endsWith(".md")) return true;
-                        int dotIndex = fileName.lastIndexOf('.');
-                        if (dotIndex > 0) {
-                            String extension = fileName.substring(dotIndex + 1);
-                            return extensions.contains(extension);
-                        }
-                        return extensions.contains(fileName);
-                    })
-                    .sorted()
-                    .collect(Collectors.toList());
-
-            Platform.runLater(() -> {
-                allFoundFiles = foundFiles;
-                filesSelectedForMerge = new HashSet<>(allFoundFiles);
-                log("Сканирование завершено. Найдено файлов: " + allFoundFiles.size());
-                updateButtonStates();
-            });
-
-        } catch (IOException e) {
-            log("ОШИБКА СКАНИРОВАНИЯ: " + e.getMessage());
-        }
-    }
-
-    @FXML private void handleRescan() { new Thread(this::scanProject).start(); }
-    @FXML private void handleConvert() {
-        if (allFoundFiles.isEmpty()) {
-            log("Ошибка: Файлы для конвертации не найдены. Проверьте путь к папке и настройки.");
-            return;
-        }
-        boolean generateStructureFile = generateStructureFileCheckbox.isSelected();
-        boolean generateMergedFile = generateMergedFileCheckbox.isSelected();
-        new Thread(() -> convertFilesInBackground(sourceDirField.getText(), allFoundFiles, filesSelectedForMerge, generateStructureFile, generateMergedFile)).start();
-    }
-    private void convertFilesInBackground(String sourceDirPath, List<Path> filesToProcess, Set<Path> selectedForMerge, boolean generateStructureFile, boolean generateMergedFile) {
-        Platform.runLater(() -> logArea.clear());
-        log("Начало конвертации...");
-        log("Всего файлов для обработки: " + filesToProcess.size());
-        if (generateMergedFile) log("Файлов для включения в единый отчет: " + selectedForMerge.size());
-        Path sourcePath = Paths.get(sourceDirPath);
-        Path outputPath = sourcePath.resolve(OUTPUT_DIR_NAME);
-        Map<Path, Path> processedFilesMap = new LinkedHashMap<>();
-        try {
-            prepareOutputDirectory(outputPath);
-            for (Path sourceFile : filesToProcess) {
-                String sourceFileName = sourceFile.getFileName().toString();
-                String destFileName = sourceFileName.toLowerCase().endsWith(".md") ? sourceFileName : sourceFileName + ".txt";
-                Path destFile = outputPath.resolve(destFileName);
-                Files.copy(sourceFile, destFile, StandardCopyOption.REPLACE_EXISTING);
-                log("Скопировано: " + sourcePath.relativize(sourceFile));
-                processedFilesMap.put(sourceFile, destFile);
-            }
-            if (generateStructureFile && !filesToProcess.isEmpty()) {
-                List<Path> relativePaths = filesToProcess.stream().map(sourcePath::relativize).collect(Collectors.toList());
-                generateStructureReport(outputPath, sourcePath.getFileName().toString(), relativePaths);
-            }
-            if (generateMergedFile && !processedFilesMap.isEmpty()) {
-                generateMergedFile(outputPath, processedFilesMap, selectedForMerge);
-            }
-            log("\n====================\nКОНВЕРТАЦИЯ ЗАВЕРШЕНА\n====================");
-            log("Все файлы сохранены в папке: " + outputPath);
-        } catch (IOException e) {
-            log("КРИТИЧЕСКАЯ ОШИБКА: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-    private void generateMergedFile(Path outputPath, Map<Path, Path> processedFilesMap, Set<Path> selectedForMerge) throws IOException {
-        log("Создание единого файла...");
-        Path mergedFile = outputPath.resolve("_MergedOutput.txt");
-        StringBuilder mergedContent = new StringBuilder();
-        mergedContent.append("Единый файл с полным кодом необходимого проекта, сгенерированный TxtConverter\n");
-        mergedContent.append("Дата генерации: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
-        for (Map.Entry<Path, Path> entry : processedFilesMap.entrySet()) {
-            Path originalPath = entry.getKey();
-            Path destinationPath = entry.getValue();
-            mergedContent.append("======================================================================\n");
-            mergedContent.append("--- FILE: ").append(originalPath.getFileName()).append(" ---\n");
-            mergedContent.append("======================================================================\n\n");
-            if (selectedForMerge.contains(originalPath)) {
-                try {
-                    String content = Files.readString(destinationPath, StandardCharsets.UTF_8);
-                    mergedContent.append(content).append("\n\n");
-                } catch (IOException e) {
-                    mergedContent.append("!!! ОШИБКА ЧТЕНИЯ ФАЙЛА: ").append(e.getMessage()).append(" !!!\n\n");
-                }
-            } else {
-                mergedContent.append("(Содержимое файла опущено для краткости. При необходимости ИИ-ассистент обязан запросить его полный код)\n\n");
-            }
-        }
-        Files.writeString(mergedFile, mergedContent.toString(), StandardCharsets.UTF_8);
-        log("Единый файл успешно создан: " + mergedFile.getFileName());
-    }
     @FXML private void handleSelectSource() {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Выберите папку проекта");
@@ -266,6 +118,141 @@ public class MainController {
             handleRescan();
         }
     }
+
+    @FXML private void handleRescan() {
+        String sourceDirPath = sourceDirField.getText();
+        if (sourceDirPath == null || sourceDirPath.isBlank()) {
+            log("Ошибка: Папка не выбрана.");
+            return;
+        }
+
+        setUiBlocked(true);
+        log("Запуск сканирования...");
+
+        FileScannerTask scannerTask = new FileScannerTask(
+                sourceDirPath,
+                OUTPUT_DIR_NAME,
+                getExtensions(),
+                getIgnoredFolders()
+        );
+
+        // Привязка UI к задаче
+        statusLabel.textProperty().bind(scannerTask.messageProperty());
+
+        scannerTask.setOnSucceeded(e -> {
+            allFoundFiles = scannerTask.getValue();
+            // По умолчанию выбираем все файлы для слияния
+            filesSelectedForMerge = new HashSet<>(allFoundFiles);
+
+            // Обновляем UI: показываем пользователю новое имя файла с нижним подчеркиванием
+            String projectName = Paths.get(sourceDirPath).getFileName().toString();
+            String outputFileName = "_" + projectName + "_Full_Source_code.txt";
+            generateMergedFileCheckbox.setText("Создавать единый файл (" + outputFileName + ")");
+
+            log("Сканирование завершено. Найдено файлов: " + allFoundFiles.size());
+            setUiBlocked(false);
+            statusLabel.textProperty().unbind();
+            statusLabel.setText("Ожидание действий");
+            updateButtonStates();
+        });
+
+        scannerTask.setOnFailed(e -> {
+            log("ОШИБКА СКАНИРОВАНИЯ: " + scannerTask.getException().getMessage());
+            setUiBlocked(false);
+            statusLabel.textProperty().unbind();
+            statusLabel.setText("Ошибка");
+        });
+
+        new Thread(scannerTask).start();
+    }
+
+    @FXML private void handleSelectFiles() {
+        if (allFoundFiles.isEmpty()) return;
+
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("selection-dialog.fxml"));
+            Stage dialogStage = new Stage();
+            dialogStage.setTitle("Выбор файлов");
+            dialogStage.initModality(Modality.WINDOW_MODAL);
+            dialogStage.initOwner(stage);
+            dialogStage.initStyle(StageStyle.UNDECORATED);
+
+            Scene scene = new Scene(loader.load());
+            scene.getStylesheets().add(getClass().getResource("styles.css").toExternalForm());
+            dialogStage.setScene(scene);
+
+            SelectionController controller = loader.getController();
+            controller.setDialogStage(dialogStage);
+            controller.initData(allFoundFiles, filesSelectedForMerge, Paths.get(sourceDirField.getText()));
+
+            dialogStage.showAndWait();
+
+            controller.getSelectedFiles().ifPresent(selected -> {
+                this.filesSelectedForMerge = selected;
+                log("Выбрано для отчета: " + selected.size() + " из " + allFoundFiles.size());
+            });
+
+        } catch (IOException e) {
+            log("КРИТИЧЕСКАЯ ОШИБКА UI: " + e.getMessage());
+        }
+    }
+
+    @FXML private void handleConvert() {
+        if (allFoundFiles.isEmpty()) {
+            log("Нет файлов для обработки.");
+            return;
+        }
+
+        setUiBlocked(true);
+        logArea.clear();
+        log("Начало конвертации...");
+
+        ConverterTask converterTask = new ConverterTask(
+                sourceDirField.getText(),
+                OUTPUT_DIR_NAME,
+                allFoundFiles,
+                filesSelectedForMerge,
+                generateStructureFileCheckbox.isSelected(),
+                generateMergedFileCheckbox.isSelected()
+        );
+
+        // Привязка прогресса
+        progressBar.progressProperty().bind(converterTask.progressProperty());
+        statusLabel.textProperty().bind(converterTask.messageProperty());
+
+        converterTask.setOnSucceeded(e -> {
+            log("\n====================\nКОНВЕРТАЦИЯ УСПЕШНА\n====================");
+            log("Результат в папке: " + Paths.get(sourceDirField.getText(), OUTPUT_DIR_NAME));
+            setUiBlocked(false);
+            progressBar.progressProperty().unbind();
+            progressBar.setProgress(1.0);
+            statusLabel.textProperty().unbind();
+            statusLabel.setText("Готово");
+        });
+
+        converterTask.setOnFailed(e -> {
+            log("КРИТИЧЕСКАЯ ОШИБКА КОНВЕРТАЦИИ: " + converterTask.getException().getMessage());
+            converterTask.getException().printStackTrace();
+            setUiBlocked(false);
+            progressBar.progressProperty().unbind();
+            progressBar.setProgress(0.0);
+            statusLabel.textProperty().unbind();
+            statusLabel.setText("Ошибка");
+        });
+
+        new Thread(converterTask).start();
+    }
+
+    // --- HELPERS ---
+
+    private void setUiBlocked(boolean blocked) {
+        rescanBtn.setDisable(blocked);
+        selectFilesBtn.setDisable(blocked);
+        convertBtn.setDisable(blocked);
+        selectSourceBtn.setDisable(blocked);
+        presetComboBox.setDisable(blocked);
+    }
+
     private void updateButtonStates() {
         boolean isScanned = !allFoundFiles.isEmpty();
         boolean isDirSelected = sourceDirField.getText() != null && !sourceDirField.getText().isBlank();
@@ -273,42 +260,25 @@ public class MainController {
         selectFilesBtn.setDisable(!isScanned);
         convertBtn.setDisable(!isScanned);
     }
+
     private List<String> getIgnoredFolders() {
         String rawText = ignoredFoldersField.getText();
         if (rawText == null || rawText.isBlank()) return Collections.emptyList();
         return Arrays.stream(rawText.split(",")).map(String::trim).map(String::toLowerCase).filter(s -> !s.isEmpty()).collect(Collectors.toList());
     }
+
     private List<String> getExtensions() {
         String rawText = extensionsField.getText();
         if (rawText == null || rawText.isBlank()) return Collections.emptyList();
         return Arrays.stream(rawText.split(",")).map(String::trim).map(String::toLowerCase).filter(s -> !s.isEmpty()).collect(Collectors.toList());
     }
-    private void setupWindowDrag() {
-        titleBar.setOnMousePressed(event -> { xOffset = event.getSceneX(); yOffset = event.getSceneY(); });
-        titleBar.setOnMouseDragged(event -> { stage.setX(event.getScreenX() - xOffset); stage.setY(event.getScreenY() - yOffset); });
-    }
+
     @FXML private void handleMinimize() { if (stage != null) stage.setIconified(true); }
     @FXML private void handleClose() { Platform.exit(); }
-    private void log(String message) { Platform.runLater(() -> logArea.appendText(message + "\n")); }
+
+    private void log(String message) {
+        Platform.runLater(() -> logArea.appendText(message + "\n"));
+    }
+
     private Stage getStage() { return (stage != null) ? stage : (Stage) sourceDirField.getScene().getWindow(); }
-    private void prepareOutputDirectory(Path outputPath) throws IOException {
-        if (Files.exists(outputPath)) {
-            try (var stream = Files.walk(outputPath)) { stream.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete); }
-        }
-        Files.createDirectories(outputPath);
-    }
-    private void generateStructureReport(Path outputPath, String rootDirName, List<Path> relativePaths) throws IOException {
-        log("Создание файла структуры...");
-        Path reportFile = outputPath.resolve("_FileStructure.md");
-        StringBuilder reportContent = new StringBuilder("# Структура скопированных файлов\n\n");
-        reportContent.append("```\n").append(rootDirName).append("\n");
-        for (Path path : relativePaths) {
-            StringBuilder prefix = new StringBuilder();
-            if (path.getParent() != null) { for (int i = 0; i < path.getNameCount() - 1; i++) prefix.append("│   "); }
-            reportContent.append(prefix).append("├── ").append(path.getFileName()).append("\n");
-        }
-        reportContent.append("```\n");
-        Files.writeString(reportFile, reportContent.toString(), StandardCharsets.UTF_8);
-        log("Файл структуры успешно создан: " + reportFile.getFileName());
-    }
 }
