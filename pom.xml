@@ -10,6 +10,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <javafx.version>21.0.2</javafx.version>
@@ -102,6 +103,7 @@
                     <vendor>TartarusCore</vendor>
                     <mainJar>${project.build.finalName}.jar</mainJar>
                     <mainClass>TartarusCore.TxtConverter.Launcher</mainClass>
+                    <icon>icon.ico</icon>
                     <type>APP_IMAGE</type>
                 </configuration>
             </plugin>

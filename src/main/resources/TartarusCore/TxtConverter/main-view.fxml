@@ -21,8 +21,12 @@
         <padding>
             <Insets left="10.0"/>
         </padding>
-        <Label text="TXT File Converter" styleClass="title-label"/>
+        <Label fx:id="lblTitle" text="TXT File Converter" styleClass="title-label"/>
         <Region HBox.hgrow="ALWAYS"/>
+
+        <!-- КНОПКА НАСТРОЕК -->
+        <Button onAction="#handleSettings" styleClass="window-button" text="⚙"/>
+
         <Button fx:id="minimizeBtn" onAction="#handleMinimize" styleClass="window-button" text="_"/>
         <Button fx:id="closeBtn" onAction="#handleClose" styleClass="window-button,close-button" text="X"/>
     </HBox>
@@ -34,48 +38,46 @@
         <top>
             <VBox spacing="10.0" BorderPane.alignment="CENTER">
                 <children>
-                    <Label text="Настройки Конвертации">
+                    <Label text="Configuration">
                         <font>
                             <Font name="System Bold" size="16.0"/>
                         </font>
                     </Label>
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <children>
-                            <Label text="Папка с исходниками:" HBox.hgrow="NEVER"/>
+                            <Label fx:id="lblSourceDir" text="Source Folder:" HBox.hgrow="NEVER"/>
                             <TextField fx:id="sourceDirField" editable="false" HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="selectSourceBtn" onAction="#handleSelectSource" text="Выбрать..."/>
+                            <Button fx:id="selectSourceBtn" onAction="#handleSelectSource" text="Select..."/>
                         </children>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <children>
-                            <Label text="Пресет:"/>
+                            <Label fx:id="lblPreset" text="Preset:"/>
                             <ComboBox fx:id="presetComboBox" prefWidth="150.0"/>
                         </children>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <children>
-                            <Label text="Расширения (через запятую):" HBox.hgrow="NEVER"/>
-                            <TextField fx:id="extensionsField" promptText="Например: gd, tscn, java, xml"
-                                       HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="lblExtensions" text="Extensions:" HBox.hgrow="NEVER"/>
+                            <TextField fx:id="extensionsField" promptText="e.g. java, xml" HBox.hgrow="ALWAYS"/>
                         </children>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <children>
-                            <Label text="Игнорируемые папки (через запятую):" HBox.hgrow="NEVER"/>
-                            <TextField fx:id="ignoredFoldersField" promptText="Например: Library, Temp, obj"
-                                       HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="rescanBtn" onAction="#handleRescan" text="Пересканировать"/>
+                            <Label fx:id="lblIgnored" text="Ignored Folders:" HBox.hgrow="NEVER"/>
+                            <TextField fx:id="ignoredFoldersField" promptText="e.g. target, .git" HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="rescanBtn" onAction="#handleRescan" text="Rescan"/>
                         </children>
                     </HBox>
 
-                    <CheckBox fx:id="generateStructureFileCheckbox" text="Создавать файл структуры (_FileStructure.md)"/>
+                    <CheckBox fx:id="generateStructureFileCheckbox" text="Generate Structure"/>
 
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
-                        <CheckBox fx:id="generateMergedFileCheckbox" selected="true" text="Создавать единый файл со всем кодом (_MergedOutput.txt)"/>
-                        <Button fx:id="selectFilesBtn" onAction="#handleSelectFiles" text="Выбрать файлы..."/>
+                        <CheckBox fx:id="generateMergedFileCheckbox" selected="true" text="Generate Merged File"/>
+                        <Button fx:id="selectFilesBtn" onAction="#handleSelectFiles" text="Select Files..."/>
                     </HBox>
 
-                    <Button fx:id="convertBtn" maxWidth="Infinity" onAction="#handleConvert" text="НАЧАТЬ КОНВЕРТАЦИЮ"/>
+                    <Button fx:id="convertBtn" maxWidth="Infinity" onAction="#handleConvert" text="START CONVERSION"/>
                 </children>
             </VBox>
         </top>
@@ -85,16 +87,15 @@
                     <Insets top="15.0"/>
                 </BorderPane.margin>
                 <children>
-                    <Label text="Лог выполнения:">
+                    <Label fx:id="lblLog" text="Log:">
                         <font>
                             <Font name="System Bold" size="14.0"/>
                         </font>
                     </Label>
                     <TextArea fx:id="logArea" editable="false" VBox.vgrow="ALWAYS"/>
 
-                    <!-- Новая панель статуса и прогресса -->
                     <HBox spacing="10.0" alignment="CENTER_LEFT">
-                        <Label fx:id="statusLabel" text="Готов к работе" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+                        <Label fx:id="statusLabel" text="Ready" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
                         <ProgressBar fx:id="progressBar" progress="0.0" prefWidth="200.0"/>
                     </HBox>
                 </children>

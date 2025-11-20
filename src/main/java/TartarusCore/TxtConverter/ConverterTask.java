@@ -13,46 +13,51 @@ import java.util.stream.Collectors;
 
 /**
  * Задача для копирования файлов и генерации отчетов.
+ * Использует локализацию и константы.
  */
 public class ConverterTask extends Task<Void> {
 
     private final String sourceDirPath;
-    private final String outputDirName;
     private final List<Path> filesToProcess;
     private final Set<Path> filesSelectedForMerge;
     private final boolean generateStructureFile;
     private final boolean generateMergedFile;
 
-    public ConverterTask(String sourceDirPath, String outputDirName, List<Path> filesToProcess,
+    // Сохраняем bundle при создании задачи, чтобы смена языка посередине процесса не ломала отчет
+    private final ResourceBundle bundle;
+
+    public ConverterTask(String sourceDirPath, List<Path> filesToProcess,
                          Set<Path> filesSelectedForMerge, boolean generateStructureFile, boolean generateMergedFile) {
         this.sourceDirPath = sourceDirPath;
-        this.outputDirName = outputDirName;
         this.filesToProcess = filesToProcess;
         this.filesSelectedForMerge = filesSelectedForMerge;
         this.generateStructureFile = generateStructureFile;
         this.generateMergedFile = generateMergedFile;
+        this.bundle = LanguageManager.getInstance().getBundle();
+    }
+
+    private String loc(String key) {
+        return bundle.getString(key);
     }
 
     @Override
     protected Void call() throws Exception {
-        updateMessage("Подготовка к конвертации...");
+        updateMessage(loc("task.preparing"));
         Path sourcePath = Paths.get(sourceDirPath);
-        Path outputPath = sourcePath.resolve(outputDirName);
+        Path outputPath = sourcePath.resolve(ProjectConstants.OUTPUT_DIR_NAME);
 
-        // Очистка/создание директории
         prepareOutputDirectory(outputPath);
 
         Map<Path, Path> processedFilesMap = new LinkedHashMap<>();
         int totalFiles = filesToProcess.size();
         int processedCount = 0;
 
-        // Копирование файлов
         for (Path sourceFile : filesToProcess) {
             if (isCancelled()) break;
 
             processedCount++;
             updateProgress(processedCount, totalFiles);
-            updateMessage("Обработка: " + sourceFile.getFileName());
+            updateMessage(String.format(loc("task.processing"), sourceFile.getFileName()));
 
             String sourceFileName = sourceFile.getFileName().toString();
             String destFileName = sourceFileName.toLowerCase().endsWith(".md") ? sourceFileName : sourceFileName + ".txt";
@@ -62,20 +67,18 @@ public class ConverterTask extends Task<Void> {
             processedFilesMap.put(sourceFile, destFile);
         }
 
-        // Генерация структуры
         if (generateStructureFile && !filesToProcess.isEmpty()) {
-            updateMessage("Генерация файла структуры...");
+            updateMessage(loc("task.generating_structure"));
             List<Path> relativePaths = filesToProcess.stream().map(sourcePath::relativize).collect(Collectors.toList());
             generateStructureReport(outputPath, sourcePath.getFileName().toString(), relativePaths);
         }
 
-        // Генерация единого файла
         if (generateMergedFile && !processedFilesMap.isEmpty()) {
-            updateMessage("Сборка единого файла...");
+            updateMessage(loc("task.merging"));
             generateMergedFile(outputPath, processedFilesMap);
         }
 
-        updateMessage("Готово!");
+        updateMessage(loc("task.done"));
         updateProgress(1, 1);
         return null;
     }
@@ -92,8 +95,8 @@ public class ConverterTask extends Task<Void> {
     }
 
     private void generateStructureReport(Path outputPath, String rootDirName, List<Path> relativePaths) throws IOException {
-        Path reportFile = outputPath.resolve("_FileStructure.md");
-        StringBuilder reportContent = new StringBuilder("# Структура скопированных файлов\n\n");
+        Path reportFile = outputPath.resolve(ProjectConstants.REPORT_STRUCTURE_FILE);
+        StringBuilder reportContent = new StringBuilder(loc("report.structure_header") + "\n\n");
         reportContent.append("```\n").append(rootDirName).append("\n");
 
         for (Path path : relativePaths) {
@@ -108,36 +111,33 @@ public class ConverterTask extends Task<Void> {
     }
 
     private void generateMergedFile(Path outputPath, Map<Path, Path> processedFilesMap) throws IOException {
-        // Получаем имя проекта из корневой папки
         String projectName = Paths.get(sourceDirPath).getFileName().toString();
-        // Добавляем нижнее подчеркивание в начало имени файла для сортировки
-        String outputFileName = "_" + projectName + "_Full_Source_code.txt";
+        // Формируем имя файла: _ProjectName_Full_Source_code.txt
+        String outputFileName = "_" + projectName + ProjectConstants.MERGED_FILE_SUFFIX;
 
         Path mergedFile = outputPath.resolve(outputFileName);
         StringBuilder mergedContent = new StringBuilder();
 
-        // Заголовок с именем проекта
-        mergedContent.append("Единый файл с полным кодом проекта (").append(projectName).append(")\n");
-        mergedContent.append("Дата генерации: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n");
+        mergedContent.append(String.format(loc("report.merged_header"), projectName)).append("\n");
+        mergedContent.append(String.format(loc("report.generated_date"),
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n");
 
         for (Map.Entry<Path, Path> entry : processedFilesMap.entrySet()) {
             Path originalPath = entry.getKey();
             Path destinationPath = entry.getValue();
             String fileName = originalPath.getFileName().toString();
 
-            // Минималистичный заголовок
-            mergedContent.append("\n--- FILE: ").append(fileName).append(" ---\n");
+            mergedContent.append("\n--- ").append(String.format(loc("report.file_header"), fileName)).append(" ---\n");
 
             if (filesSelectedForMerge.contains(originalPath)) {
                 try {
                     String content = Files.readString(destinationPath, StandardCharsets.UTF_8);
                     mergedContent.append(content).append("\n");
                 } catch (IOException e) {
-                    mergedContent.append("!!! ОШИБКА ЧТЕНИЯ: ").append(e.getMessage()).append(" !!!\n");
+                    mergedContent.append(String.format(loc("report.read_error"), e.getMessage())).append("\n");
                 }
             } else {
-                // Важная инструкция для LLM
-                mergedContent.append("(Содержимое файла опущено для краткости. При необходимости ИИ-ассистент обязан запросить его полный код)\n\n");
+                mergedContent.append(loc("report.omitted")).append("\n\n");
             }
         }
         Files.writeString(mergedFile, mergedContent.toString(), StandardCharsets.UTF_8);
