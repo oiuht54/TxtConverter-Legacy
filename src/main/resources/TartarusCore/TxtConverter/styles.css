@@ -1,86 +1,162 @@
+/* Основная палитра:
+   Фон: #1e1e1e (Глубокий темный)
+   Панели/Инпуты: #252526 / #333333
+   Акцент: #3a96ff (Яркий синий)
+   Текст основной: #f0f0f0
+   Текст вторичный: #cccccc
+*/
+
 .root {
-    -fx-background-color: #2b2b2b;
-    -fx-text-fill: #bbbbbb;
-    -fx-font-family: "Segoe UI", Arial, sans-serif;
+    -fx-background-color: #1e1e1e;
+    -fx-text-fill: #f0f0f0;
+    -fx-font-family: "Segoe UI", "Roboto", Arial, sans-serif;
+    -fx-font-size: 13px;
 }
 
+/* --- ТЕКСТ --- */
 .label {
-    -fx-text-fill: #bbbbbb;
+    -fx-text-fill: #e0e0e0;
 }
 
+/* --- КНОПКИ (Вторичные) --- */
 .button {
-    -fx-background-color: #3c3f41;
-    -fx-text-fill: #bbbbbb;
-    -fx-border-color: #555555;
+    -fx-background-color: #333333;
+    -fx-text-fill: #f0f0f0;
+    -fx-border-color: #454545;
     -fx-border-width: 1px;
-    -fx-background-radius: 3;
-    -fx-border-radius: 3;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+    -fx-padding: 5 12 5 12;
 }
 
 .button:hover {
-    -fx-background-color: #4f5254;
+    -fx-background-color: #454545;
+    -fx-border-color: #666666;
 }
 
 .button:pressed {
-    -fx-background-color: #353739;
+    -fx-background-color: #222222;
+    -fx-border-color: #3a96ff;
 }
 
+.button:disabled {
+    -fx-opacity: 0.6;
+    -fx-background-color: #2b2b2b;
+    -fx-text-fill: #777777;
+}
+
+/* --- ГЛАВНАЯ КНОПКА (Start Conversion) --- */
+/* Мы обращаемся к ней по ID */
+#convertBtn {
+    -fx-background-color: #3a96ff;
+    -fx-text-fill: #ffffff;
+    -fx-border-color: transparent;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 8 15 8 15;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.4), 5, 0, 0, 2);
+}
+
+#convertBtn:hover {
+    -fx-background-color: #2884e8;
+    -fx-cursor: hand;
+}
+
+#convertBtn:pressed {
+    -fx-background-color: #1c68c0;
+    -fx-effect: none;
+}
+
+#convertBtn:disabled {
+    -fx-background-color: #444444;
+    -fx-text-fill: #888888;
+    -fx-effect: none;
+}
+
+/* --- ПОЛЯ ВВОДА --- */
 .text-field, .text-area, .combo-box {
-    -fx-background-color: #3c3f41;
-    -fx-text-fill: #bbbbbb;
-    -fx-prompt-text-fill: #777777;
-    -fx-border-color: #555555;
+    -fx-background-color: #252526;
+    -fx-text-fill: #f0f0f0;
+    -fx-prompt-text-fill: #808080;
+    -fx-border-color: #3e3e42;
     -fx-border-width: 1px;
     -fx-background-radius: 3;
     -fx-border-radius: 3;
 }
 
-.text-area .content {
-    -fx-background-color: #3c3f41;
+.text-field:focused, .text-area:focused, .combo-box:focused {
+    -fx-border-color: #3a96ff;
+    -fx-background-color: #2d2d30;
 }
 
+.text-area .content {
+    -fx-background-color: #252526;
+}
+
+/* --- COMBO BOX --- */
 .combo-box .list-cell {
-    -fx-background-color: #3c3f41;
-    -fx-text-fill: #bbbbbb;
+    -fx-background-color: #252526;
+    -fx-text-fill: #f0f0f0;
 }
 
 .combo-box .list-cell:hover {
-    -fx-background-color: #4f5254;
+    -fx-background-color: #3a96ff;
+    -fx-text-fill: white;
 }
 
+.combo-box-popup .list-view {
+    -fx-background-color: #252526;
+    -fx-border-color: #454545;
+}
+
+/* --- CHECK BOX --- */
 .check-box .box {
-    -fx-background-color: #3c3f41;
-    -fx-border-color: #555555;
+    -fx-background-color: #252526;
+    -fx-border-color: #666666;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
 }
 
 .check-box:selected .mark {
-    -fx-background-color: #4e8dff;
+    -fx-background-color: white;
+    -fx-shape: "M 0 0 L 4 4 L 9 -5"; 
+}
+
+.check-box:selected .box {
+    -fx-background-color: #3a96ff;
+    -fx-border-color: #3a96ff;
 }
 
 .check-box .text {
-    -fx-fill: #bbbbbb;
+    -fx-fill: #f0f0f0;
 }
 
+/* --- TITLE BAR --- */
 .custom-title-bar {
-    -fx-background-color: #3c3f41;
-    -fx-padding: 5 10 5 10;
+    -fx-background-color: #2d2d30; /* Чуть светлее фона */
+    -fx-padding: 8 10 8 10;
+    -fx-border-color: transparent transparent #333333 transparent;
     -fx-cursor: move;
 }
 
 .title-label {
     -fx-font-weight: bold;
     -fx-font-size: 14px;
+    -fx-text-fill: #ffffff;
 }
 
 .window-button {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
-    -fx-font-size: 14px;
+    -fx-font-size: 12px;
     -fx-font-weight: bold;
+    -fx-text-fill: #cccccc;
 }
 
 .window-button:hover {
-    -fx-background-color: #55595c;
+    -fx-background-color: #444444;
+    -fx-text-fill: white;
 }
 
 .close-button:hover {
@@ -88,33 +164,47 @@
     -fx-text-fill: white;
 }
 
+/* --- PROGRESS BAR --- */
+.progress-bar .track {
+    -fx-background-color: #333333;
+    -fx-background-radius: 4;
+}
+
+.progress-bar .bar {
+    -fx-background-color: #3a96ff;
+    -fx-background-radius: 4;
+    -fx-background-insets: 0;
+}
+
+/* --- TREE VIEW --- */
 .tree-view {
-    -fx-background-color: #313335;
-    -fx-border-color: #454545;
+    -fx-background-color: #1e1e1e;
+    -fx-border-color: #333333;
 }
 
 .tree-cell {
-    -fx-padding: 5 10 5 10;
+    -fx-padding: 4 8 4 8;
     -fx-background-color: transparent;
-    -fx-text-fill: #bbbbbb;
+    -fx-text-fill: #f0f0f0;
 }
 
 .tree-cell:hover {
-    -fx-background-color: #3c3f41;
+    -fx-background-color: #2d2d30;
 }
 
 .tree-cell:selected {
-    -fx-background-color: #4b6eaf;
+    -fx-background-color: #264f78; /* Темно-синий фон выделения, как в VS Code */
+    -fx-text-fill: white;
 }
 
-/* >>> ОБНОВЛЕННЫЙ СТИЛЬ "BUBBLE" ДЛЯ КАТЕГОРИЙ <<< */
-/* Этот класс теперь программно применяется к ячейкам-категориям */
+/* --- TREE VIEW: Categories (Bubbles) --- */
 .category-tree-item {
-    -fx-background-color: #252527;
+    -fx-background-color: #2d2d30;
     -fx-font-weight: bold;
-    -fx-font-size: 14px;
-    -fx-background-radius: 8;
-    -fx-padding: 8 12 8 12;
-    /* Имитируем отступ снизу для разделения "пузырей" */
-    -fx-background-insets: 0 0 5 0;
-}
+    -fx-font-size: 12px;
+    -fx-text-fill: #9cdcfe; /* Светло-голубой текст для категорий */
+    -fx-background-radius: 4;
+    -fx-border-color: #454545;
+    -fx-border-radius: 4;
+    -fx-padding: 6 10 6 10;
+    -f
