@@ -14,7 +14,9 @@ import java.util.stream.Stream;
 
 /**
  * Задача для копирования файлов и генерации отчетов.
- * Использует локализацию и константы.
+ * - Compact Mode: показывает ТОЛЬКО конвертируемые файлы.
+ * - Full Mode: показывает всё (с группировкой мусора).
+ * - Игнорируются: .import, .tmp, .uid
  */
 public class ConverterTask extends Task<Void> {
 
@@ -23,19 +25,25 @@ public class ConverterTask extends Task<Void> {
     private final Set<Path> filesSelectedForMerge;
     private final List<String> ignoredFolders;
     private final boolean generateStructureFile;
+    private final boolean compactMode;
     private final boolean generateMergedFile;
 
     private final ResourceBundle bundle;
 
+    private static final int COLLAPSE_THRESHOLD = 5;
+
     public ConverterTask(String sourceDirPath, List<Path> filesToProcess,
                          Set<Path> filesSelectedForMerge,
                          List<String> ignoredFolders,
-                         boolean generateStructureFile, boolean generateMergedFile) {
+                         boolean generateStructureFile,
+                         boolean compactMode,
+                         boolean generateMergedFile) {
         this.sourceDirPath = sourceDirPath;
         this.filesToProcess = filesToProcess;
         this.filesSelectedForMerge = filesSelectedForMerge;
         this.ignoredFolders = ignoredFolders;
         this.generateStructureFile = generateStructureFile;
+        this.compactMode = compactMode;
         this.generateMergedFile = generateMergedFile;
         this.bundle = LanguageManager.getInstance().getBundle();
     }
@@ -56,7 +64,7 @@ public class ConverterTask extends Task<Void> {
         int totalFiles = filesToProcess.size();
         int processedCount = 0;
 
-        // --- 1. Обработка файлов (копирование) ---
+        // --- 1. Обработка файлов ---
         for (Path sourceFile : filesToProcess) {
             if (isCancelled()) break;
 
@@ -72,7 +80,7 @@ public class ConverterTask extends Task<Void> {
             processedFilesMap.put(sourceFile, destFile);
         }
 
-        // --- 2. Генерация карты структуры (Новая логика) ---
+        // --- 2. Генерация карты структуры ---
         if (generateStructureFile) {
             updateMessage(loc("task.generating_structure"));
             generateDeepStructureReport(outputPath, sourcePath);
@@ -100,93 +108,149 @@ public class ConverterTask extends Task<Void> {
         Files.createDirectories(outputPath);
     }
 
-    /**
-     * Создает подробный отчет о структуре проекта с рекурсивным обходом.
-     */
     private void generateDeepStructureReport(Path outputPath, Path rootPath) throws IOException {
         Path reportFile = outputPath.resolve(ProjectConstants.REPORT_STRUCTURE_FILE);
         StringBuilder report = new StringBuilder();
 
-        // Заголовок
         report.append(loc("report.structure_header")).append("\n");
         report.append(String.format(loc("report.generated_date"),
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n\n");
 
-        // Легенда
         report.append("### Legend / Легенда:\n");
-        report.append("- `[ M ]` Merged: Full content included in report.\n");
-        report.append("- `[ S ]` Stub: File included as a stub (content omitted).\n");
-        report.append("- `[ - ]` Ignored: Not included in report (wrong extension or binary).\n\n");
+        report.append("- `[ M ]` Merged: Full content included.\n");
+        report.append("- `[ S ]` Stub: File included as a stub.\n");
+
+        if (compactMode) {
+            report.append("- `(Hidden)`: Ignored files are hidden in Compact Mode.\n");
+        } else {
+            report.append("- `[ - ]` Ignored: Not included in report.\n");
+            report.append("- `[ ... ]` Collapsed: Group of ignored files.\n");
+        }
+        report.append("\n");
 
         report.append("```text\n");
         report.append("[ROOT] ").append(rootPath.getFileName()).append("\n");
 
-        // Рекурсивный запуск
         Set<Path> processedSet = new HashSet<>(filesToProcess);
-
         walkDirectoryTree(rootPath, "", report, processedSet);
 
         report.append("```\n");
         Files.writeString(reportFile, report.toString(), StandardCharsets.UTF_8);
     }
 
-    /**
-     * Рекурсивный метод для построения ASCII-дерева.
-     */
     private void walkDirectoryTree(Path currentDir, String prefix, StringBuilder sb, Set<Path> processedSet) {
-        List<Path> elements;
+        List<Path> allChildren;
         try (Stream<Path> stream = Files.list(currentDir)) {
-            elements = stream
+            allChildren = stream
                     .filter(p -> shouldIncludeInStructure(p, currentDir))
-                    .sorted((p1, p2) -> {
-                        // Папки сверху, файлы снизу
-                        boolean d1 = Files.isDirectory(p1);
-                        boolean d2 = Files.isDirectory(p2);
-                        if (d1 && !d2) return -1;
-                        if (!d1 && d2) return 1;
-                        return p1.getFileName().compareTo(p2.getFileName());
-                    })
                     .collect(Collectors.toList());
         } catch (IOException e) {
             sb.append(prefix).append("└── !!! Access Denied !!!\n");
             return;
         }
 
-        for (int i = 0; i < elements.size(); i++) {
-            Path path = elements.get(i);
-            boolean isLast = (i == elements.size() - 1);
-            String connector = isLast ? "└── " : "├── ";
-            String childPrefix = prefix + (isLast ? "    " : "│   ");
+        List<Path> nodesToShow = new ArrayList<>();
+        List<Path> filesToCollapse = new ArrayList<>();
 
-            if (Files.isDirectory(path)) {
-                // Заменили эмодзи на [DIR]
-                sb.append(prefix).append(connector).append("[DIR] ").append(path.getFileName()).append("\n");
-                walkDirectoryTree(path, childPrefix, sb, processedSet);
+        for (Path child : allChildren) {
+            if (Files.isDirectory(child)) {
+                nodesToShow.add(child);
             } else {
-                String size = formatSize(path);
-                String status = getFileStatus(path, processedSet);
-                // Заменили эмодзи на [FILE]
-                // Пример: ├── [FILE] Main.java (12 KB) [ M ]
-                sb.append(prefix).append(connector)
-                        .append("[FILE] ").append(path.getFileName())
-                        .append(" (").append(size).append(") ")
-                        .append(status).append("\n");
+                boolean isProcessed = processedSet.contains(child);
+
+                if (isProcessed) {
+                    // Это важный файл (конвертируется) - показываем всегда
+                    nodesToShow.add(child);
+                } else {
+                    // Это игнорируемый файл
+                    if (!compactMode) {
+                        // В обычном режиме добавляем в список "на сжатие" или отображение
+                        filesToCollapse.add(child);
+                    }
+                    // В компактном режиме просто пропускаем (не добавляем никуда)
+                }
             }
         }
+
+        // Логика отображения игнорируемых (ТОЛЬКО если !compactMode)
+        if (!compactMode && !filesToCollapse.isEmpty()) {
+            if (filesToCollapse.size() <= COLLAPSE_THRESHOLD) {
+                nodesToShow.addAll(filesToCollapse);
+                filesToCollapse.clear();
+            }
+        }
+
+        // Сортировка: Папки -> Файлы
+        nodesToShow.sort((p1, p2) -> {
+            boolean d1 = Files.isDirectory(p1);
+            boolean d2 = Files.isDirectory(p2);
+            if (d1 && !d2) return -1;
+            if (!d1 && d2) return 1;
+            return p1.getFileName().compareTo(p2.getFileName());
+        });
+
+        int totalItems = nodesToShow.size() + (filesToCollapse.isEmpty() ? 0 : 1);
+        int currentIndex = 0;
+
+        // Печать узлов
+        for (Path path : nodesToShow) {
+            boolean isLast = (currentIndex == totalItems - 1);
+            printNode(path, prefix, isLast, sb, processedSet);
+            currentIndex++;
+        }
+
+        // Печать строки Summary (ТОЛЬКО если !compactMode и есть хвост)
+        if (!filesToCollapse.isEmpty()) {
+            Map<String, Long> extStats = filesToCollapse.stream()
+                    .map(this::getExtension)
+                    .collect(Collectors.groupingBy(s -> s, Collectors.counting()));
+
+            String statsStr = extStats.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                    .limit(3)
+                    .map(e -> e.getKey() + "(" + e.getValue() + ")")
+                    .collect(Collectors.joining(", "));
+
+            String connector = "└── ";
+            sb.append(prefix).append(connector)
+                    .append("[ ... ").append(filesToCollapse.size())
+                    .append(" ignored files: ").append(statsStr)
+                    .append(" ... ]\n");
+        }
+    }
+
+    private void printNode(Path path, String prefix, boolean isLast, StringBuilder sb, Set<Path> processedSet) {
+        String connector = isLast ? "└── " : "├── ";
+        String childPrefix = prefix + (isLast ? "    " : "│   ");
+
+        if (Files.isDirectory(path)) {
+            sb.append(prefix).append(connector).append("[DIR] ").append(path.getFileName()).append("\n");
+            walkDirectoryTree(path, childPrefix, sb, processedSet);
+        } else {
+            String size = formatSize(path);
+            String status = getFileStatus(path, processedSet);
+            sb.append(prefix).append(connector)
+                    .append("[FILE] ").append(path.getFileName())
+                    .append(" (").append(size).append(") ")
+                    .append(status).append("\n");
+        }
+    }
+
+    private String getExtension(Path path) {
+        String name = path.getFileName().toString();
+        int lastDot = name.lastIndexOf('.');
+        return (lastDot > 0) ? name.substring(lastDot) : "no-ext";
     }
 
     private boolean shouldIncludeInStructure(Path path, Path rootOfWalk) {
         String name = path.getFileName().toString();
-        // Игнорируем выходную папку самого конвертера
         if (name.equals(ProjectConstants.OUTPUT_DIR_NAME)) return false;
 
-        // >>> Игнорируем файлы .import (Godot) <<<
-        if (name.endsWith(".import")) return false;
+        // >>> Добавлено игнорирование .tmp и .uid <<<
+        if (name.endsWith(".import") || name.endsWith(".tmp") || name.endsWith(".uid")) return false;
 
-        // Игнорируем скрытые файлы (опционально, но обычно полезно)
         if (name.startsWith(".") && !name.equals(".gitignore")) return false;
 
-        // Проверяем список игнорируемых папок
         if (Files.isDirectory(path)) {
             if (ignoredFolders.contains(name.toLowerCase())) return false;
         }
@@ -205,11 +269,11 @@ public class ConverterTask extends Task<Void> {
 
     private String getFileStatus(Path path, Set<Path> processedSet) {
         if (filesSelectedForMerge.contains(path)) {
-            return "[ M ]"; // Merged Full
+            return "[ M ]";
         } else if (processedSet.contains(path)) {
-            return "[ S ]"; // Stub
+            return "[ S ]";
         } else {
-            return "[ - ]"; // Ignored
+            return "[ - ]";
         }
     }
 

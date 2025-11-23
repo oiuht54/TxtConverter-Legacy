@@ -24,7 +24,6 @@
         <Label fx:id="lblTitle" text="TXT File Converter" styleClass="title-label"/>
         <Region HBox.hgrow="ALWAYS"/>
 
-        <!-- КНОПКА НАСТРОЕК -->
         <Button onAction="#handleSettings" styleClass="window-button" text="⚙"/>
 
         <Button fx:id="minimizeBtn" onAction="#handleMinimize" styleClass="window-button" text="_"/>
@@ -70,7 +69,11 @@
                         </children>
                     </HBox>
 
-                    <CheckBox fx:id="generateStructureFileCheckbox" text="Generate Structure"/>
+                    <!-- >>> ИЗМЕНЕНИЕ: Группировка чекбоксов структуры <<< -->
+                    <HBox spacing="15.0" alignment="CENTER_LEFT">
+                        <CheckBox fx:id="generateStructureFileCheckbox" text="Generate Structure"/>
+                        <CheckBox fx:id="compactStructureCheckbox" text="Compact Mode" selected="true"/>
+                    </HBox>
 
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <CheckBox fx:id="generateMergedFileCheckbox" selected="true" text="Generate Merged File"/>

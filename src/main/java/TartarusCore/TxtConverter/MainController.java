@@ -46,6 +46,9 @@ public class MainController {
     @FXML private TextArea logArea;
 
     @FXML private CheckBox generateStructureFileCheckbox;
+    // >>> НОВЫЙ ЧЕКБОКС <<<
+    @FXML private CheckBox compactStructureCheckbox;
+
     @FXML private TextField ignoredFoldersField;
     @FXML private CheckBox generateMergedFileCheckbox;
 
@@ -67,6 +70,11 @@ public class MainController {
 
         generateMergedFileCheckbox.setSelected(true);
         generateStructureFileCheckbox.setSelected(false);
+        // Компактный режим включен по умолчанию
+        compactStructureCheckbox.setSelected(true);
+        // Делаем зависимость: если структура выключена, то и настройки компактности недоступны
+        compactStructureCheckbox.disableProperty().bind(generateStructureFileCheckbox.selectedProperty().not());
+
         updateButtonStates();
 
         LanguageManager.getInstance().addListener(this::updateTexts);
@@ -90,6 +98,8 @@ public class MainController {
 
         String structFileName = ProjectConstants.REPORT_STRUCTURE_FILE;
         generateStructureFileCheckbox.setText(String.format(lm.getString("ui.structure_cb"), structFileName));
+        // >>> Локализация нового чекбокса <<<
+        compactStructureCheckbox.setText(lm.getString("ui.compact_structure_cb"));
 
         updateMergedCheckboxText();
 
@@ -273,13 +283,14 @@ public class MainController {
         logArea.clear();
         log(LanguageManager.getInstance().getString("log.conversion_start"));
 
-        // >>> ИЗМЕНЕНИЕ: Передаем getIgnoredFolders() в конструктор <<<
         ConverterTask converterTask = new ConverterTask(
                 sourceDirField.getText(),
                 allFoundFiles,
                 filesSelectedForMerge,
-                getIgnoredFolders(), // Передаем список игнорируемых папок
+                getIgnoredFolders(),
                 generateStructureFileCheckbox.isSelected(),
+                // >>> ПЕРЕДАЕМ ЗНАЧЕНИЕ КОМПАКТНОГО РЕЖИМА <<<
+                compactStructureCheckbox.isSelected(),
                 generateMergedFileCheckbox.isSelected()
         );
 
