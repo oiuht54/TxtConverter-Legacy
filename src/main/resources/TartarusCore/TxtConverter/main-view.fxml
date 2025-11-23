@@ -76,7 +76,10 @@
                     </HBox>
 
                     <!-- Новый чекбокс умного сжатия -->
-                    <CheckBox fx:id="tokenCompressionCheckbox" text="Smart Token Compression"/>
+                    <HBox spacing="10.0" alignment="CENTER_LEFT">
+                        <Label fx:id="lblCompression" text="Compression:"/>
+                        <ComboBox fx:id="compressionComboBox" prefWidth="220.0"/>
+                    </HBox>
 
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <CheckBox fx:id="generateMergedFileCheckbox" selected="true" text="Generate Merged File"/>

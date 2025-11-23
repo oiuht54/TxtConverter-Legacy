@@ -10,6 +10,7 @@ import javafx.stage.DirectoryChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.util.StringConverter;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,14 +20,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class MainController {
-
+    // ... (поля presets, stage и т.д. без изменений)
     private final Map<String, String> presets = new LinkedHashMap<>();
     private final Map<String, String> ignoredFolderPresets = new LinkedHashMap<>();
-
     private Stage stage;
     private double xOffset = 0;
     private double yOffset = 0;
-
     private List<Path> allFoundFiles = new ArrayList<>();
     private Set<Path> filesSelectedForMerge = new HashSet<>();
 
@@ -47,7 +46,10 @@ public class MainController {
 
     @FXML private CheckBox generateStructureFileCheckbox;
     @FXML private CheckBox compactStructureCheckbox;
-    @FXML private CheckBox tokenCompressionCheckbox; // <--- NEW CHECKBOX
+
+    // >>> ИЗМЕНЕНИЕ: ComboBox вместо CheckBox <<<
+    @FXML private Label lblCompression;
+    @FXML private ComboBox<CompressionLevel> compressionComboBox;
 
     @FXML private TextField ignoredFoldersField;
     @FXML private CheckBox generateMergedFileCheckbox;
@@ -58,30 +60,51 @@ public class MainController {
     @FXML private ProgressBar progressBar;
     @FXML private Label statusLabel;
 
-    public void setStage(Stage stage) {
-        this.stage = stage;
-    }
+    public void setStage(Stage stage) { this.stage = stage; }
 
     @FXML
     public void initialize() {
         setupPresets();
         setupPresetListener();
         setupWindowDrag();
+        setupCompressionCombo(); // <--- Настройка комбобокса
 
         generateMergedFileCheckbox.setSelected(true);
         generateStructureFileCheckbox.setSelected(false);
         compactStructureCheckbox.setSelected(true);
-        tokenCompressionCheckbox.setSelected(false);
-
-        // Биндинг: компактный режим недоступен, если сама структура отключена
         compactStructureCheckbox.disableProperty().bind(generateStructureFileCheckbox.selectedProperty().not());
 
         updateButtonStates();
 
         LanguageManager.getInstance().addListener(this::updateTexts);
-        updateTexts();
+        updateTexts(); // Первичный вызов
 
         log(LanguageManager.getInstance().getString("log.app_ready"));
+    }
+
+    private void setupCompressionCombo() {
+        compressionComboBox.getItems().addAll(CompressionLevel.values());
+        compressionComboBox.setValue(CompressionLevel.SMART); // Дефолт
+
+        // Конвертер для красивого отображения названий
+        compressionComboBox.setConverter(new StringConverter<CompressionLevel>() {
+            @Override
+            public String toString(CompressionLevel object) {
+                if (object == null) return "";
+                LanguageManager lm = LanguageManager.getInstance();
+                switch (object) {
+                    case NONE: return lm.getString("ui.comp_none");
+                    case SMART: return lm.getString("ui.comp_smart");
+                    case MAXIMUM: return lm.getString("ui.comp_max");
+                    default: return object.name();
+                }
+            }
+
+            @Override
+            public CompressionLevel fromString(String string) {
+                return null; // Не используется
+            }
+        });
     }
 
     private void updateTexts() {
@@ -100,7 +123,14 @@ public class MainController {
         String structFileName = ProjectConstants.REPORT_STRUCTURE_FILE;
         generateStructureFileCheckbox.setText(String.format(lm.getString("ui.structure_cb"), structFileName));
         compactStructureCheckbox.setText(lm.getString("ui.compact_structure_cb"));
-        tokenCompressionCheckbox.setText(lm.getString("ui.token_compression_cb")); // <--- NEW TEXT
+
+        // >>> Обновление текста метки и сброс конвертера, чтобы обновить список <<<
+        lblCompression.setText(lm.getString("ui.compression_label"));
+        // Трюк для обновления текста внутри ComboBox при смене языка
+        CompressionLevel current = compressionComboBox.getValue();
+        compressionComboBox.setConverter(compressionComboBox.getConverter());
+        compressionComboBox.setValue(current);
+        // ------------------------------------------------------------------------
 
         updateMergedCheckboxText();
 
@@ -113,6 +143,7 @@ public class MainController {
         }
     }
 
+    // ... (остальные методы updateMergedCheckboxText, setupPresets, setupPresetListener, setupWindowDrag, handleSettings, handleSelectSource, handleRescan, handleSelectFiles... БЕЗ ИЗМЕНЕНИЙ)
     private void updateMergedCheckboxText() {
         LanguageManager lm = LanguageManager.getInstance();
         String fileName;
@@ -125,8 +156,7 @@ public class MainController {
         generateMergedFileCheckbox.setText(String.format(lm.getString("ui.merged_cb"), fileName));
     }
 
-    // --- UI SETUP & PRESETS ---
-
+    // ... setupPresets ...
     private void setupPresets() {
         presets.put("Manual", "");
         presets.put("Godot Engine", "gd, tscn, tres, gdshader, godot");
@@ -167,8 +197,6 @@ public class MainController {
         titleBar.setOnMousePressed(event -> { xOffset = event.getSceneX(); yOffset = event.getSceneY(); });
         titleBar.setOnMouseDragged(event -> { stage.setX(event.getScreenX() - xOffset); stage.setY(event.getScreenY() - yOffset); });
     }
-
-    // --- EVENT HANDLERS ---
 
     @FXML private void handleSettings() {
         try {
@@ -284,6 +312,7 @@ public class MainController {
         logArea.clear();
         log(LanguageManager.getInstance().getString("log.conversion_start"));
 
+        // >>> Передаем выбранный уровень сжатия <<<
         ConverterTask converterTask = new ConverterTask(
                 sourceDirField.getText(),
                 allFoundFiles,
@@ -291,7 +320,7 @@ public class MainController {
                 getIgnoredFolders(),
                 generateStructureFileCheckbox.isSelected(),
                 compactStructureCheckbox.isSelected(),
-                tokenCompressionCheckbox.isSelected(), // <--- PASSING THE NEW FLAG
+                compressionComboBox.getValue(), // Передаем Enum
                 generateMergedFileCheckbox.isSelected()
         );
 
@@ -321,14 +350,14 @@ public class MainController {
         new Thread(converterTask).start();
     }
 
-    // --- HELPERS ---
-
+    // ... helpers ...
     private void setUiBlocked(boolean blocked) {
         rescanBtn.setDisable(blocked);
         selectFilesBtn.setDisable(blocked);
         convertBtn.setDisable(blocked);
         selectSourceBtn.setDisable(blocked);
         presetComboBox.setDisable(blocked);
+        compressionComboBox.setDisable(blocked);
     }
 
     private void updateButtonStates() {
