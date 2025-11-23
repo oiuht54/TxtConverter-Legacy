@@ -69,11 +69,14 @@
                         </children>
                     </HBox>
 
-                    <!-- >>> ИЗМЕНЕНИЕ: Группировка чекбоксов структуры <<< -->
+                    <!-- Группировка чекбоксов структуры -->
                     <HBox spacing="15.0" alignment="CENTER_LEFT">
                         <CheckBox fx:id="generateStructureFileCheckbox" text="Generate Structure"/>
                         <CheckBox fx:id="compactStructureCheckbox" text="Compact Mode" selected="true"/>
                     </HBox>
+
+                    <!-- Новый чекбокс умного сжатия -->
+                    <CheckBox fx:id="tokenCompressionCheckbox" text="Smart Token Compression"/>
 
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <CheckBox fx:id="generateMergedFileCheckbox" selected="true" text="Generate Merged File"/>

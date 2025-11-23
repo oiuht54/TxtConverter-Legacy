@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 /**
  * Задача для копирования файлов и генерации отчетов.
  * - Compact Mode: показывает ТОЛЬКО конвертируемые файлы.
- * - Full Mode: показывает всё (с группировкой мусора).
+ * - Smart Token Compression: убирает визуальный шум (ASCII, пустые строки) для экономии токенов.
  * - Игнорируются: .import, .tmp, .uid
  */
 public class ConverterTask extends Task<Void> {
@@ -26,6 +26,7 @@ public class ConverterTask extends Task<Void> {
     private final List<String> ignoredFolders;
     private final boolean generateStructureFile;
     private final boolean compactMode;
+    private final boolean smartCompression; // <--- NEW FLAG
     private final boolean generateMergedFile;
 
     private final ResourceBundle bundle;
@@ -37,6 +38,7 @@ public class ConverterTask extends Task<Void> {
                          List<String> ignoredFolders,
                          boolean generateStructureFile,
                          boolean compactMode,
+                         boolean smartCompression,
                          boolean generateMergedFile) {
         this.sourceDirPath = sourceDirPath;
         this.filesToProcess = filesToProcess;
@@ -44,6 +46,7 @@ public class ConverterTask extends Task<Void> {
         this.ignoredFolders = ignoredFolders;
         this.generateStructureFile = generateStructureFile;
         this.compactMode = compactMode;
+        this.smartCompression = smartCompression;
         this.generateMergedFile = generateMergedFile;
         this.bundle = LanguageManager.getInstance().getBundle();
     }
@@ -76,7 +79,15 @@ public class ConverterTask extends Task<Void> {
             String destFileName = sourceFileName.toLowerCase().endsWith(".md") ? sourceFileName : sourceFileName + ".txt";
             Path destFile = outputPath.resolve(destFileName);
 
-            Files.copy(sourceFile, destFile, StandardCopyOption.REPLACE_EXISTING);
+            // Если включено умное сжатие - обрабатываем контент перед записью
+            if (smartCompression && !sourceFileName.toLowerCase().endsWith(".md")) { // Markdown лучше не трогать, чтобы не ломать форматирование
+                String content = Files.readString(sourceFile, StandardCharsets.UTF_8);
+                String compressedContent = compressCode(content);
+                Files.writeString(destFile, compressedContent, StandardCharsets.UTF_8);
+            } else {
+                Files.copy(sourceFile, destFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+
             processedFilesMap.put(sourceFile, destFile);
         }
 
@@ -95,6 +106,11 @@ public class ConverterTask extends Task<Void> {
         updateMessage(loc("task.done"));
         updateProgress(1, 1);
         return null;
+    }
+
+    // Метод для удаления лишних пустых строк (оставляет максимум одну пустую строку подряд)
+    private String compressCode(String content) {
+        return content.replaceAll("(\\r?\\n){3,}", "\n\n").trim();
     }
 
     private void prepareOutputDirectory(Path outputPath) throws IOException {
@@ -116,25 +132,36 @@ public class ConverterTask extends Task<Void> {
         report.append(String.format(loc("report.generated_date"),
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n\n");
 
-        report.append("### Legend / Легенда:\n");
-        report.append("- `[ M ]` Merged: Full content included.\n");
-        report.append("- `[ S ]` Stub: File included as a stub.\n");
+        if (!smartCompression) {
+            // Стандартная легенда
+            report.append("### Legend / Легенда:\n");
+            report.append("- `[ M ]` Merged: Full content included.\n");
+            report.append("- `[ S ]` Stub: File included as a stub.\n");
 
-        if (compactMode) {
-            report.append("- `(Hidden)`: Ignored files are hidden in Compact Mode.\n");
+            if (compactMode) {
+                report.append("- `(Hidden)`: Ignored files are hidden in Compact Mode.\n");
+            } else {
+                report.append("- `[ - ]` Ignored: Not included in report.\n");
+                report.append("- `[ ... ]` Collapsed: Group of ignored files.\n");
+            }
         } else {
-            report.append("- `[ - ]` Ignored: Not included in report.\n");
-            report.append("- `[ ... ]` Collapsed: Group of ignored files.\n");
+            // Упрощенная легенда для режима сжатия
+            report.append("(Smart Compression Enabled: Visual noise removed)\n");
+            if (compactMode) report.append("(Compact Mode: Only relevant files shown)\n");
         }
+
         report.append("\n");
 
-        report.append("```text\n");
-        report.append("[ROOT] ").append(rootPath.getFileName()).append("\n");
+        if (!smartCompression) report.append("```text\n");
+
+        // Корень
+        report.append(smartCompression ? rootPath.getFileName() + "/" : "[ROOT] " + rootPath.getFileName()).append("\n");
 
         Set<Path> processedSet = new HashSet<>(filesToProcess);
         walkDirectoryTree(rootPath, "", report, processedSet);
 
-        report.append("```\n");
+        if (!smartCompression) report.append("```\n");
+
         Files.writeString(reportFile, report.toString(), StandardCharsets.UTF_8);
     }
 
@@ -145,7 +172,7 @@ public class ConverterTask extends Task<Void> {
                     .filter(p -> shouldIncludeInStructure(p, currentDir))
                     .collect(Collectors.toList());
         } catch (IOException e) {
-            sb.append(prefix).append("└── !!! Access Denied !!!\n");
+            sb.append(prefix).append(smartCompression ? "  ACCESS DENIED\n" : "└── !!! Access Denied !!!\n");
             return;
         }
 
@@ -159,20 +186,16 @@ public class ConverterTask extends Task<Void> {
                 boolean isProcessed = processedSet.contains(child);
 
                 if (isProcessed) {
-                    // Это важный файл (конвертируется) - показываем всегда
                     nodesToShow.add(child);
                 } else {
-                    // Это игнорируемый файл
                     if (!compactMode) {
-                        // В обычном режиме добавляем в список "на сжатие" или отображение
                         filesToCollapse.add(child);
                     }
-                    // В компактном режиме просто пропускаем (не добавляем никуда)
                 }
             }
         }
 
-        // Логика отображения игнорируемых (ТОЛЬКО если !compactMode)
+        // Логика отображения игнорируемых (только если выключен CompactMode)
         if (!compactMode && !filesToCollapse.isEmpty()) {
             if (filesToCollapse.size() <= COLLAPSE_THRESHOLD) {
                 nodesToShow.addAll(filesToCollapse);
@@ -192,7 +215,6 @@ public class ConverterTask extends Task<Void> {
         int totalItems = nodesToShow.size() + (filesToCollapse.isEmpty() ? 0 : 1);
         int currentIndex = 0;
 
-        // Печать узлов
         for (Path path : nodesToShow) {
             boolean isLast = (currentIndex == totalItems - 1);
             printNode(path, prefix, isLast, sb, processedSet);
@@ -211,28 +233,52 @@ public class ConverterTask extends Task<Void> {
                     .map(e -> e.getKey() + "(" + e.getValue() + ")")
                     .collect(Collectors.joining(", "));
 
-            String connector = "└── ";
-            sb.append(prefix).append(connector)
-                    .append("[ ... ").append(filesToCollapse.size())
-                    .append(" ignored files: ").append(statsStr)
-                    .append(" ... ]\n");
+            if (smartCompression) {
+                // Сжатый вид summary (просто отступ, без ASCII)
+                sb.append(prefix).append("  ... (").append(filesToCollapse.size()).append(" ignored: ").append(statsStr).append(")\n");
+            } else {
+                // Стандартный ASCII вид
+                String connector = "└── ";
+                sb.append(prefix).append(connector)
+                        .append("[ ... ").append(filesToCollapse.size())
+                        .append(" ignored files: ").append(statsStr)
+                        .append(" ... ]\n");
+            }
         }
     }
 
     private void printNode(Path path, String prefix, boolean isLast, StringBuilder sb, Set<Path> processedSet) {
-        String connector = isLast ? "└── " : "├── ";
-        String childPrefix = prefix + (isLast ? "    " : "│   ");
+        // >>> ЛОГИКА ОТОБРАЖЕНИЯ (SMART vs NORMAL) <<<
 
-        if (Files.isDirectory(path)) {
-            sb.append(prefix).append(connector).append("[DIR] ").append(path.getFileName()).append("\n");
-            walkDirectoryTree(path, childPrefix, sb, processedSet);
+        if (smartCompression) {
+            // == РЕЖИМ СЖАТИЯ ==
+            // Используем только отступы (2 пробела), без труб
+            String currentIndent = prefix + "  ";
+
+            if (Files.isDirectory(path)) {
+                sb.append(currentIndent).append(path.getFileName()).append("/\n");
+                // Для рекурсии просто увеличиваем отступ
+                walkDirectoryTree(path, currentIndent, sb, processedSet);
+            } else {
+                sb.append(currentIndent).append(path.getFileName()).append("\n");
+            }
+
         } else {
-            String size = formatSize(path);
-            String status = getFileStatus(path, processedSet);
-            sb.append(prefix).append(connector)
-                    .append("[FILE] ").append(path.getFileName())
-                    .append(" (").append(size).append(") ")
-                    .append(status).append("\n");
+            // == ОБЫЧНЫЙ РЕЖИМ (ASCII ART) ==
+            String connector = isLast ? "└── " : "├── ";
+            String childPrefix = prefix + (isLast ? "    " : "│   ");
+
+            if (Files.isDirectory(path)) {
+                sb.append(prefix).append(connector).append("[DIR] ").append(path.getFileName()).append("\n");
+                walkDirectoryTree(path, childPrefix, sb, processedSet);
+            } else {
+                String size = formatSize(path);
+                String status = getFileStatus(path, processedSet);
+                sb.append(prefix).append(connector)
+                        .append("[FILE] ").append(path.getFileName())
+                        .append(" (").append(size).append(") ")
+                        .append(status).append("\n");
+            }
         }
     }
 
@@ -246,7 +292,7 @@ public class ConverterTask extends Task<Void> {
         String name = path.getFileName().toString();
         if (name.equals(ProjectConstants.OUTPUT_DIR_NAME)) return false;
 
-        // >>> Добавлено игнорирование .tmp и .uid <<<
+        // Игнорируем технические файлы
         if (name.endsWith(".import") || name.endsWith(".tmp") || name.endsWith(".uid")) return false;
 
         if (name.startsWith(".") && !name.equals(".gitignore")) return false;
@@ -284,26 +330,37 @@ public class ConverterTask extends Task<Void> {
         Path mergedFile = outputPath.resolve(outputFileName);
         StringBuilder mergedContent = new StringBuilder();
 
-        mergedContent.append(String.format(loc("report.merged_header"), projectName)).append("\n");
-        mergedContent.append(String.format(loc("report.generated_date"),
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n");
+        if (smartCompression) {
+            // Минималистичный заголовок
+            mergedContent.append("# Project: ").append(projectName).append("\n");
+            mergedContent.append("# Generated: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))).append("\n\n");
+        } else {
+            mergedContent.append(String.format(loc("report.merged_header"), projectName)).append("\n");
+            mergedContent.append(String.format(loc("report.generated_date"),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n");
+        }
 
         for (Map.Entry<Path, Path> entry : processedFilesMap.entrySet()) {
             Path originalPath = entry.getKey();
             Path destinationPath = entry.getValue();
             String fileName = originalPath.getFileName().toString();
 
-            mergedContent.append("\n--- ").append(String.format(loc("report.file_header"), fileName)).append(" ---\n");
+            // >>> Сжатые разделители <<<
+            if (smartCompression) {
+                mergedContent.append("\n>>> ").append(fileName).append("\n");
+            } else {
+                mergedContent.append("\n--- ").append(String.format(loc("report.file_header"), fileName)).append(" ---\n");
+            }
 
             if (filesSelectedForMerge.contains(originalPath)) {
                 try {
                     String content = Files.readString(destinationPath, StandardCharsets.UTF_8);
                     mergedContent.append(content).append("\n");
                 } catch (IOException e) {
-                    mergedContent.append(String.format(loc("report.read_error"), e.getMessage())).append("\n");
+                    mergedContent.append("!!! Error: ").append(e.getMessage()).append("\n");
                 }
             } else {
-                mergedContent.append(loc("report.omitted")).append("\n\n");
+                mergedContent.append("(Stub)\n\n");
             }
         }
         Files.writeString(mergedFile, mergedContent.toString(), StandardCharsets.UTF_8);

@@ -46,8 +46,8 @@ public class MainController {
     @FXML private TextArea logArea;
 
     @FXML private CheckBox generateStructureFileCheckbox;
-    // >>> НОВЫЙ ЧЕКБОКС <<<
     @FXML private CheckBox compactStructureCheckbox;
+    @FXML private CheckBox tokenCompressionCheckbox; // <--- NEW CHECKBOX
 
     @FXML private TextField ignoredFoldersField;
     @FXML private CheckBox generateMergedFileCheckbox;
@@ -70,9 +70,10 @@ public class MainController {
 
         generateMergedFileCheckbox.setSelected(true);
         generateStructureFileCheckbox.setSelected(false);
-        // Компактный режим включен по умолчанию
         compactStructureCheckbox.setSelected(true);
-        // Делаем зависимость: если структура выключена, то и настройки компактности недоступны
+        tokenCompressionCheckbox.setSelected(false);
+
+        // Биндинг: компактный режим недоступен, если сама структура отключена
         compactStructureCheckbox.disableProperty().bind(generateStructureFileCheckbox.selectedProperty().not());
 
         updateButtonStates();
@@ -98,8 +99,8 @@ public class MainController {
 
         String structFileName = ProjectConstants.REPORT_STRUCTURE_FILE;
         generateStructureFileCheckbox.setText(String.format(lm.getString("ui.structure_cb"), structFileName));
-        // >>> Локализация нового чекбокса <<<
         compactStructureCheckbox.setText(lm.getString("ui.compact_structure_cb"));
+        tokenCompressionCheckbox.setText(lm.getString("ui.token_compression_cb")); // <--- NEW TEXT
 
         updateMergedCheckboxText();
 
@@ -289,8 +290,8 @@ public class MainController {
                 filesSelectedForMerge,
                 getIgnoredFolders(),
                 generateStructureFileCheckbox.isSelected(),
-                // >>> ПЕРЕДАЕМ ЗНАЧЕНИЕ КОМПАКТНОГО РЕЖИМА <<<
                 compactStructureCheckbox.isSelected(),
+                tokenCompressionCheckbox.isSelected(), // <--- PASSING THE NEW FLAG
                 generateMergedFileCheckbox.isSelected()
         );
 
