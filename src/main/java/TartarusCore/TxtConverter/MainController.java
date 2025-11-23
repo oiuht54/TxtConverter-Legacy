@@ -30,7 +30,7 @@ public class MainController {
     private List<Path> allFoundFiles = new ArrayList<>();
     private Set<Path> filesSelectedForMerge = new HashSet<>();
 
-    // UI Elements (Injecting Labels to update text dynamically)
+    // UI Elements
     @FXML private Label lblTitle;
     @FXML private Label lblSourceDir;
     @FXML private Label lblPreset;
@@ -69,17 +69,12 @@ public class MainController {
         generateStructureFileCheckbox.setSelected(false);
         updateButtonStates();
 
-        // Подписываемся на смену языка
         LanguageManager.getInstance().addListener(this::updateTexts);
-        // Первичная инициализация текстов
         updateTexts();
 
         log(LanguageManager.getInstance().getString("log.app_ready"));
     }
 
-    /**
-     * Метод обновляет весь текст в UI при смене языка
-     */
     private void updateTexts() {
         LanguageManager lm = LanguageManager.getInstance();
 
@@ -96,14 +91,12 @@ public class MainController {
         String structFileName = ProjectConstants.REPORT_STRUCTURE_FILE;
         generateStructureFileCheckbox.setText(String.format(lm.getString("ui.structure_cb"), structFileName));
 
-        // Для чекбокса слияния нужно сохранить динамическую часть (имя файла) если она уже есть
         updateMergedCheckboxText();
 
         selectFilesBtn.setText(lm.getString("ui.select_files_btn"));
         convertBtn.setText(lm.getString("ui.convert_btn"));
         lblLog.setText(lm.getString("ui.log_label"));
 
-        // Обновляем статус, если задача не бежит прямо сейчас
         if (statusLabel.textProperty().isBound() == false) {
             statusLabel.setText(lm.getString("ui.status_ready"));
         }
@@ -124,8 +117,6 @@ public class MainController {
     // --- UI SETUP & PRESETS ---
 
     private void setupPresets() {
-        // Имена пресетов оставляем как есть (технические термины), "Вручную" можно перевести,
-        // но тогда усложнится логика мапы. Для надежности оставляем ключи английскими.
         presets.put("Manual", "");
         presets.put("Godot Engine", "gd, tscn, tres, gdshader, godot");
         presets.put("Unity Engine", "cs, shader, cginc, txt, json, xml, asmdef, asset, inputactions");
@@ -282,10 +273,12 @@ public class MainController {
         logArea.clear();
         log(LanguageManager.getInstance().getString("log.conversion_start"));
 
+        // >>> ИЗМЕНЕНИЕ: Передаем getIgnoredFolders() в конструктор <<<
         ConverterTask converterTask = new ConverterTask(
                 sourceDirField.getText(),
                 allFoundFiles,
                 filesSelectedForMerge,
+                getIgnoredFolders(), // Передаем список игнорируемых папок
                 generateStructureFileCheckbox.isSelected(),
                 generateMergedFileCheckbox.isSelected()
         );

@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Задача для копирования файлов и генерации отчетов.
@@ -20,17 +21,20 @@ public class ConverterTask extends Task<Void> {
     private final String sourceDirPath;
     private final List<Path> filesToProcess;
     private final Set<Path> filesSelectedForMerge;
+    private final List<String> ignoredFolders;
     private final boolean generateStructureFile;
     private final boolean generateMergedFile;
 
-    // Сохраняем bundle при создании задачи, чтобы смена языка посередине процесса не ломала отчет
     private final ResourceBundle bundle;
 
     public ConverterTask(String sourceDirPath, List<Path> filesToProcess,
-                         Set<Path> filesSelectedForMerge, boolean generateStructureFile, boolean generateMergedFile) {
+                         Set<Path> filesSelectedForMerge,
+                         List<String> ignoredFolders,
+                         boolean generateStructureFile, boolean generateMergedFile) {
         this.sourceDirPath = sourceDirPath;
         this.filesToProcess = filesToProcess;
         this.filesSelectedForMerge = filesSelectedForMerge;
+        this.ignoredFolders = ignoredFolders;
         this.generateStructureFile = generateStructureFile;
         this.generateMergedFile = generateMergedFile;
         this.bundle = LanguageManager.getInstance().getBundle();
@@ -52,6 +56,7 @@ public class ConverterTask extends Task<Void> {
         int totalFiles = filesToProcess.size();
         int processedCount = 0;
 
+        // --- 1. Обработка файлов (копирование) ---
         for (Path sourceFile : filesToProcess) {
             if (isCancelled()) break;
 
@@ -67,12 +72,13 @@ public class ConverterTask extends Task<Void> {
             processedFilesMap.put(sourceFile, destFile);
         }
 
-        if (generateStructureFile && !filesToProcess.isEmpty()) {
+        // --- 2. Генерация карты структуры (Новая логика) ---
+        if (generateStructureFile) {
             updateMessage(loc("task.generating_structure"));
-            List<Path> relativePaths = filesToProcess.stream().map(sourcePath::relativize).collect(Collectors.toList());
-            generateStructureReport(outputPath, sourcePath.getFileName().toString(), relativePaths);
+            generateDeepStructureReport(outputPath, sourcePath);
         }
 
+        // --- 3. Генерация объединенного файла ---
         if (generateMergedFile && !processedFilesMap.isEmpty()) {
             updateMessage(loc("task.merging"));
             generateMergedFile(outputPath, processedFilesMap);
@@ -94,25 +100,121 @@ public class ConverterTask extends Task<Void> {
         Files.createDirectories(outputPath);
     }
 
-    private void generateStructureReport(Path outputPath, String rootDirName, List<Path> relativePaths) throws IOException {
+    /**
+     * Создает подробный отчет о структуре проекта с рекурсивным обходом.
+     */
+    private void generateDeepStructureReport(Path outputPath, Path rootPath) throws IOException {
         Path reportFile = outputPath.resolve(ProjectConstants.REPORT_STRUCTURE_FILE);
-        StringBuilder reportContent = new StringBuilder(loc("report.structure_header") + "\n\n");
-        reportContent.append("```\n").append(rootDirName).append("\n");
+        StringBuilder report = new StringBuilder();
 
-        for (Path path : relativePaths) {
-            StringBuilder prefix = new StringBuilder();
-            if (path.getParent() != null) {
-                for (int i = 0; i < path.getNameCount() - 1; i++) prefix.append("│   ");
-            }
-            reportContent.append(prefix).append("├── ").append(path.getFileName()).append("\n");
+        // Заголовок
+        report.append(loc("report.structure_header")).append("\n");
+        report.append(String.format(loc("report.generated_date"),
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n\n");
+
+        // Легенда
+        report.append("### Legend / Легенда:\n");
+        report.append("- `[ M ]` Merged: Full content included in report.\n");
+        report.append("- `[ S ]` Stub: File included as a stub (content omitted).\n");
+        report.append("- `[ - ]` Ignored: Not included in report (wrong extension or binary).\n\n");
+
+        report.append("```text\n");
+        report.append("[ROOT] ").append(rootPath.getFileName()).append("\n");
+
+        // Рекурсивный запуск
+        Set<Path> processedSet = new HashSet<>(filesToProcess);
+
+        walkDirectoryTree(rootPath, "", report, processedSet);
+
+        report.append("```\n");
+        Files.writeString(reportFile, report.toString(), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Рекурсивный метод для построения ASCII-дерева.
+     */
+    private void walkDirectoryTree(Path currentDir, String prefix, StringBuilder sb, Set<Path> processedSet) {
+        List<Path> elements;
+        try (Stream<Path> stream = Files.list(currentDir)) {
+            elements = stream
+                    .filter(p -> shouldIncludeInStructure(p, currentDir))
+                    .sorted((p1, p2) -> {
+                        // Папки сверху, файлы снизу
+                        boolean d1 = Files.isDirectory(p1);
+                        boolean d2 = Files.isDirectory(p2);
+                        if (d1 && !d2) return -1;
+                        if (!d1 && d2) return 1;
+                        return p1.getFileName().compareTo(p2.getFileName());
+                    })
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            sb.append(prefix).append("└── !!! Access Denied !!!\n");
+            return;
         }
-        reportContent.append("```\n");
-        Files.writeString(reportFile, reportContent.toString(), StandardCharsets.UTF_8);
+
+        for (int i = 0; i < elements.size(); i++) {
+            Path path = elements.get(i);
+            boolean isLast = (i == elements.size() - 1);
+            String connector = isLast ? "└── " : "├── ";
+            String childPrefix = prefix + (isLast ? "    " : "│   ");
+
+            if (Files.isDirectory(path)) {
+                // Заменили эмодзи на [DIR]
+                sb.append(prefix).append(connector).append("[DIR] ").append(path.getFileName()).append("\n");
+                walkDirectoryTree(path, childPrefix, sb, processedSet);
+            } else {
+                String size = formatSize(path);
+                String status = getFileStatus(path, processedSet);
+                // Заменили эмодзи на [FILE]
+                // Пример: ├── [FILE] Main.java (12 KB) [ M ]
+                sb.append(prefix).append(connector)
+                        .append("[FILE] ").append(path.getFileName())
+                        .append(" (").append(size).append(") ")
+                        .append(status).append("\n");
+            }
+        }
+    }
+
+    private boolean shouldIncludeInStructure(Path path, Path rootOfWalk) {
+        String name = path.getFileName().toString();
+        // Игнорируем выходную папку самого конвертера
+        if (name.equals(ProjectConstants.OUTPUT_DIR_NAME)) return false;
+
+        // >>> Игнорируем файлы .import (Godot) <<<
+        if (name.endsWith(".import")) return false;
+
+        // Игнорируем скрытые файлы (опционально, но обычно полезно)
+        if (name.startsWith(".") && !name.equals(".gitignore")) return false;
+
+        // Проверяем список игнорируемых папок
+        if (Files.isDirectory(path)) {
+            if (ignoredFolders.contains(name.toLowerCase())) return false;
+        }
+        return true;
+    }
+
+    private String formatSize(Path path) {
+        try {
+            long bytes = Files.size(path);
+            if (bytes < 1024) return bytes + " B";
+            return (bytes / 1024) + " KB";
+        } catch (IOException e) {
+            return "?";
+        }
+    }
+
+    private String getFileStatus(Path path, Set<Path> processedSet) {
+        if (filesSelectedForMerge.contains(path)) {
+            return "[ M ]"; // Merged Full
+        } else if (processedSet.contains(path)) {
+            return "[ S ]"; // Stub
+        } else {
+            return "[ - ]"; // Ignored
+        }
     }
 
     private void generateMergedFile(Path outputPath, Map<Path, Path> processedFilesMap) throws IOException {
         String projectName = Paths.get(sourceDirPath).getFileName().toString();
-        // Формируем имя файла: _ProjectName_Full_Source_code.txt
         String outputFileName = "_" + projectName + ProjectConstants.MERGED_FILE_SUFFIX;
 
         Path mergedFile = outputPath.resolve(outputFileName);
