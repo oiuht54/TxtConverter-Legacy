@@ -14,8 +14,8 @@ The application scans your project folder and creates an optimized single text f
 
 ---
 
-## 🌍 New: Multilingual Support
-The application now fully supports **English** and **Russian** languages.
+## 🌍 Multilingual Support
+The application fully supports **English** and **Russian** languages.
 *   **First Run:** You will be prompted to select your preferred language.
 *   **Settings:** You can change the language at any time using the Settings (⚙) menu.
 *   **Persistence:** Your choice is saved automatically for future sessions.
@@ -24,23 +24,29 @@ The application now fully supports **English** and **Russian** languages.
 
 ## 🔥 Key Features
 
+### 🚀 Smart Automation & UX (New!)
+*   **Drag & Drop:** Simply drag your project folder into the application window to start.
+*   **Auto-Detection:** The app automatically analyzes project files (e.g., `package.json`, `pom.xml`, `project.godot`) and selects the correct Preset for you.
+*   **Smart Persistence:** The app remembers your last used folder, settings, and window position.
+
 ### 🧠 Optimization for LLMs (AI)
-*   **Token Saving:** We replaced bulky separators with minimalistic headers (`--- FILE: Name.ext ---`). This allows fitting more useful code into the AI's context window.
+*   **Token Compression:**
+    *   **Smart:** Removes excessive empty lines.
+    *   **Maximum:** Removes all comments and formatting, turning code into a flat list of commands to save maximum tokens.
 *   **Smart Merging:** You can choose which files to include **fully** and which to keep as **stubs**.
     *   *Example:* If a file is found but not selected for merging, the report will contain: `(File content omitted for brevity...)`. This gives the AI context about the file's existence without wasting tokens on its content.
 
-### ⚡ Efficiency & UX
-*   **Smart Sorting:** The unified file is automatically named `_(ProjectName)_Full_Source_code.txt`. The `_` symbol ensures the file appears at the top of your file explorer.
-*   **Modern UI:** A custom dark interface (High Contrast Dark Theme) styled like modern IDEs (VS Code / JetBrains).
-*   **Feedback:** Built-in **Progress Bar** and status line allow real-time tracking of large project processing.
-
-### 🛡️ Safety
+### ⚡ Performance & Safety
+*   **Turbo Scanning:** Optimized algorithm (`walkFileTree`) instantly skips massive ignored folders (like `node_modules` or `.git`), making scanning 100x faster for Web/Node.js projects.
 *   **Non-Destructive:** The app **never** modifies your source files. All results are saved in a separate `_ConvertedToTxt` folder inside your project.
-*   **Junk Ignoring:** Built-in presets automatically exclude system folders (`.git`, `node_modules`, `Library`, `target`, `.godot`), ensuring only clean code gets into the report.
 
 ### ⚙️ Flexibility
-*   **Presets:** Ready-made settings for **Unity**, **Godot**, **Java (Maven/Gradle)**, **Web Frontend**.
-*   **Structure Map:** Optional generation of a `_FileStructure.md` file, which draws a folder tree of your project for better context understanding.
+*   **Presets:** Ready-made settings for:
+    *   **Unity Engine** / **Godot Engine**
+    *   **Java (Maven/Gradle)**
+    *   **Web (TypeScript/React)** / **Web (JavaScript/Legacy)**
+    *   **Python**
+*   **Structure Map:** Optional generation of a `_FileStructure.md` file (Tree or Flat list).
 
 ---
 
@@ -48,19 +54,18 @@ The application now fully supports **English** and **Russian** languages.
 
 1.  Run `TxtConverter.exe`.
 2.  (First time only) Select your language.
-3.  Click **"Select..."** and choose your project's root folder.
-4.  Choose a **Preset** (e.g., *Unity Engine* or *Godot Engine*). The app will auto-fill extensions and ignored folders.
-5.  Click **"Rescan"** to find files.
-6.  (Optional) Click **"Select Files..."** to check only the scripts you need in full. Others will be included as stubs.
-7.  Ensure **"Generate Merged File"** is checked.
-8.  Click the big blue button **"START CONVERSION"**.
-9.  Once done, check the created `_ConvertedToTxt` folder.
+3.  **Drag & Drop** your project folder into the window (or click "Select...").
+4.  The app will try to **Auto-Detect** the preset. If needed, change it manually.
+5.  Click **"Rescan"** (if not triggered automatically).
+6.  (Optional) Click **"Select Files..."** to check only the scripts you need in full.
+7.  Click the big blue button **"START CONVERSION"**.
+8.  Once done, check the created `_ConvertedToTxt` folder.
 
 ---
 
 ## 🛠️ Build from Source
 
-The project is built on **Java 21** and **JavaFX 21**. It uses a layered architecture separating UI and background Tasks.
+The project is built on **Java 21** and **JavaFX 21**.
 
 ### Requirements
 *   JDK 21+
@@ -68,24 +73,10 @@ The project is built on **Java 21** and **JavaFX 21**. It uses a layered archite
 
 ### Build Commands
 
-1.  **Clone:**
-    ```bash
-    git clone https://github.com/YourName/TxtConverter.git
-    cd TxtConverter
-    ```
-
-2.  **Prepare Icons (Optional):**
-    *   Place `icon.ico` in the project root.
-    *   Place `icon.png` in `src/main/resources/TartarusCore/TxtConverter/`.
-
-3.  **Build (Create .exe):**
-    ```bash
-    mvn clean package
-    ```
-    Maven will download dependencies, build a "fat-jar", and use `jpackage` to create a native executable image.
-
-4.  **Result:**
-    The ready-to-use application will be in: `target/jpackage/TxtConverter/`
+```bash
+mvn clean package
+```
+The ready-to-use application will be in: `target/jpackage/TxtConverter/`
 
 ---
 
@@ -100,58 +91,43 @@ The project is built on **Java 21** and **JavaFX 21**. It uses a layered archite
 
 ---
 
-## 🌍 Новое: Мультиязычность
-Приложение теперь полностью поддерживает **Русский** и **Английский** языки.
-*   **Первый запуск:** Программа предложит выбрать удобный язык.
-*   **Настройки:** Вы можете сменить язык в любой момент через меню Настроек (⚙).
-*   **Память:** Ваш выбор сохраняется автоматически для будущих запусков.
+## 🌍 Мультиязычность
+Приложение полностью поддерживает **Русский** и **Английский** языки.
+*   **Память:** Ваш выбор языка и настроек сохраняется автоматически.
 
 ---
 
 ## 🔥 Ключевые возможности
 
+### 🚀 Автоматизация и Удобство (New!)
+*   **Drag & Drop:** Просто перетащите папку проекта в окно программы.
+*   **Авто-определение:** Приложение само находит ключевые файлы (`project.godot`, `pom.xml`, `package.json` и др.) и выставляет нужный пресет.
+*   **Сохранение настроек:** Программа запоминает последнюю папку, пресет и галочки настроек.
+
 ### 🧠 Оптимизация для LLM (ИИ)
-*   **Экономия токенов:** Мы заменили громоздкие разделители на минималистичные заголовки (`--- FILE: Name.ext ---`). Это позволяет вместить больше полезного кода в контекстное окно нейросети.
-*   **Умное слияние:** Вы можете выбрать, какие файлы включить в отчет **полностью**, а какие оставить в виде **заглушек**.
-    *   *Пример:* Если файл не выбран для слияния, в отчете появится строка: `(Содержимое файла опущено для краткости...)`. Это дает ИИ контекст о существовании файла, не тратя токены на его содержимое.
+*   **Сжатие токенов:**
+    *   **Умное:** Удаляет лишние пустые строки.
+    *   **Максимум:** Удаляет комментарии и форматирование, максимально экономя контекст нейросети.
+*   **Умное слияние:** Выбор файлов, которые нужны **полностью**, и файлов, которые нужны только как **заглушки** (для контекста).
 
-### ⚡ Эффективность и Удобство
-*   **Умная сортировка:** Единый файл теперь автоматически именуется как `_(ИмяПроекта)_Full_Source_code.txt`. Символ `_` в начале гарантирует, что файл всегда будет первым в списке проводника.
-*   **Современный UI:** Темный интерфейс (High Contrast Dark Theme) в стиле современных IDE (VS Code / JetBrains).
-*   **Обратная связь:** Встроенный **Progress Bar** и статусная строка позволяют отслеживать процесс обработки больших проектов в реальном времени.
+### ⚡ Производительность
+*   **Турбо-сканирование:** Новый алгоритм мгновенно пропускает тяжелые папки (вроде `node_modules`), ускоряя работу с Web-проектами в сотни раз.
+*   **Безопасность:** Результаты сохраняются в отдельную папку `_ConvertedToTxt`, исходники не затрагиваются.
 
-### 🛡️ Безопасность
-*   **Non-Destructive:** Приложение **никогда** не меняет исходные файлы. Все результаты сохраняются в отдельную папку `_ConvertedToTxt` внутри вашего проекта.
-*   **Игнорирование мусора:** Встроенные пресеты автоматически исключают системные папки (`.git`, `node_modules`, `Library`, `target`, `.godot`), чтобы в отчет попадал только чистый код.
-
-### ⚙️ Гибкая настройка
-*   **Пресеты:** Готовые настройки для **Unity**, **Godot**, **Java (Maven/Gradle)**, **Web Frontend**.
-*   **Древовидный выбор:** Удобное меню выбора файлов с группировкой по расширениям.
-*   **Структура проекта:** Опциональная генерация файла `_FileStructure.md`, который рисует дерево папок вашего проекта.
+### ⚙️ Пресеты
+*   **GameDev:** Unity, Godot.
+*   **Web:** TypeScript (Modern), JavaScript (Classic).
+*   **Backend:** Java, Python.
 
 ---
 
 ## 🚀 Как использовать
 
 1.  Запустите `TxtConverter.exe`.
-2.  (Только в первый раз) Выберите язык интерфейса.
-3.  Нажмите **"Выбрать..."** и укажите корневую папку вашего проекта.
-4.  Выберите **Пресет** (например, *Unity Engine* или *Godot Engine*).
-5.  Нажмите **"Пересканировать"**, чтобы увидеть список найденных файлов.
-6.  (Опционально) Нажмите **"Выбрать файлы..."**, чтобы отметить галочками только те скрипты, которые нужны вам в полном объеме. Остальные файлы будут добавлены в отчет как заглушки.
-7.  Убедитесь, что галочка **"Создавать единый файл..."** включена.
-8.  Нажмите большую синюю кнопку **"НАЧАТЬ КОНВЕРТАЦИЮ"**.
-9.  По завершении зайдите в появившуюся папку `_ConvertedToTxt` и заберите готовый файл.
-
----
-
-## 💻 Технологический стек
-
-*   **Язык:** Java 21
-*   **UI Framework:** JavaFX 21 (FXML + CSS Styling)
-*   **Concurrency:** JavaFX `Task<V>` API
-*   **Build System:** Maven
-    *   `jpackage-maven-plugin`: Создание самодостаточного установщика/экзешника (JRE включена внутрь).
+2.  **Перетащите папку** проекта в окно (или нажмите "Выбрать...").
+3.  Приложение автоматически определит тип проекта (Пресет).
+4.  Нажмите **"Начать конвертацию"**.
+5.  Заберите готовый файл в папке `_ConvertedToTxt`.
 
 ---
 

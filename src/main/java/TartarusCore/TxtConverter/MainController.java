@@ -5,7 +5,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.input.DragEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -34,7 +33,7 @@ public class MainController {
     private Set<Path> filesSelectedForMerge = new HashSet<>();
 
     // UI Elements
-    @FXML private VBox rootBox; // Ссылка на корневой контейнер для D&D
+    @FXML private VBox rootBox;
     @FXML private Label lblTitle;
     @FXML private Label lblSourceDir;
     @FXML private Label lblPreset;
@@ -72,12 +71,10 @@ public class MainController {
         setupPresetListener();
         setupWindowDrag();
         setupCompressionCombo();
-        setupDragAndDrop(); // <--- Drag & Drop
+        setupDragAndDrop();
 
-        // Настраиваем зависимости чекбоксов
         compactStructureCheckbox.disableProperty().bind(generateStructureFileCheckbox.selectedProperty().not());
 
-        // Загрузка сохраненных настроек
         loadPreferences();
 
         LanguageManager.getInstance().addListener(this::updateTexts);
@@ -92,7 +89,6 @@ public class MainController {
 
         rootBox.setOnDragOver(event -> {
             if (event.getDragboard().hasFiles()) {
-                // Разрешаем перетаскивание, только если это папка
                 List<File> files = event.getDragboard().getFiles();
                 if (files.size() == 1 && files.get(0).isDirectory()) {
                     event.acceptTransferModes(TransferMode.COPY);
@@ -119,28 +115,23 @@ public class MainController {
     private void loadPreferences() {
         PreferenceManager prefs = PreferenceManager.getInstance();
 
-        // Путь
         String lastDir = prefs.getString(ProjectConstants.PREF_LAST_DIR, "");
         if (!lastDir.isEmpty() && Files.exists(Paths.get(lastDir))) {
             sourceDirField.setText(lastDir);
         }
 
-        // Пресет (важно установить его ДО загрузки расширений, иначе листенер пресета перезапишет поля)
         String lastPreset = prefs.getString(ProjectConstants.PREF_LAST_PRESET, "Unity Engine");
         if (presets.containsKey(lastPreset)) {
             presetComboBox.getSelectionModel().select(lastPreset);
         }
 
-        // Чекбоксы
         generateStructureFileCheckbox.setSelected(prefs.getBoolean(ProjectConstants.PREF_GEN_STRUCTURE, false));
         compactStructureCheckbox.setSelected(prefs.getBoolean(ProjectConstants.PREF_COMPACT_MODE, true));
         generateMergedFileCheckbox.setSelected(prefs.getBoolean(ProjectConstants.PREF_GEN_MERGED, true));
         compressionComboBox.setValue(prefs.getCompressionLevel());
 
-        // Если папка была загружена, обновляем имя выходного файла
         if (!sourceDirField.getText().isEmpty()) {
             updateMergedCheckboxText();
-            // Опционально: можно автоматически нажать Rescan, но лучше оставить пользователю выбор
         }
     }
 
@@ -156,7 +147,6 @@ public class MainController {
 
     private void setupCompressionCombo() {
         compressionComboBox.getItems().addAll(CompressionLevel.values());
-        // Значение устанавливается в loadPreferences, но на всякий случай дефолт:
         if (compressionComboBox.getValue() == null) {
             compressionComboBox.setValue(CompressionLevel.SMART);
         }
@@ -226,30 +216,25 @@ public class MainController {
     private void setupPresets() {
         presets.put("Manual", "");
 
-        // --- GameDev ---
+        // GameDev
         presets.put("Godot Engine", "gd, tscn, tres, gdshader, godot");
         presets.put("Unity Engine", "cs, shader, cginc, txt, json, xml, asmdef, asset, inputactions");
 
-        // --- Java ---
+        // Java
         presets.put("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
 
-        // --- Web Reworked ---
-        // Чистый JS + Legacy
+        // Web
         presets.put("Web (JavaScript / Classic)", "js, mjs, html, css, json");
-        // Современный стек (TS, React, Vue, Svelte)
         presets.put("Web (TypeScript / React)", "ts, tsx, jsx, html, css, scss, less, json, vue, svelte");
+
         // Python
         presets.put("Python", "py, requirements.txt, yaml, yml, json");
 
-
-        // --- Ignored Folders ---
         ignoredFolderPresets.put("Manual", "");
-
         ignoredFolderPresets.put("Godot Engine", ".godot, export_presets, .import");
         ignoredFolderPresets.put("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings, .vs, .idea");
         ignoredFolderPresets.put("Java (Maven/Gradle)", "target, .idea, build, .settings, bin, out");
 
-        // Для веба добавляем специфичные папки
         String webIgnored = "node_modules, dist, build, .next, .nuxt, coverage, .git, .vscode, .idea";
         ignoredFolderPresets.put("Web (JavaScript / Classic)", webIgnored);
         ignoredFolderPresets.put("Web (TypeScript / React)", webIgnored);
@@ -257,14 +242,18 @@ public class MainController {
         ignoredFolderPresets.put("Python", "__pycache__, venv, env, .venv, .git, .idea, .vscode, build, dist, egg-info");
 
         presetComboBox.getItems().addAll(presets.keySet());
-        // Выбор дефолтного или последнего сохраненного происходит в loadPreferences
     }
 
     private void setupPresetListener() {
         presetComboBox.getSelectionModel().selectedItemProperty().addListener((options, oldValue, newValue) -> {
             if (newValue != null) {
-                extensionsField.setText(presets.get(newValue));
-                ignoredFoldersField.setText(ignoredFolderPresets.get(newValue));
+                // Если пресет Manual, мы НЕ перезаписываем поля, чтобы не стереть пользовательский ввод,
+                // если только старое значение не было пустым (первый запуск)
+                boolean isManual = "Manual".equals(newValue);
+                if (!isManual) {
+                    extensionsField.setText(presets.get(newValue));
+                    ignoredFoldersField.setText(ignoredFolderPresets.get(newValue));
+                }
 
                 String msg = String.format(LanguageManager.getInstance().getString("log.preset_selected"), newValue);
                 log(msg);
@@ -306,7 +295,6 @@ public class MainController {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle(LanguageManager.getInstance().getString("ui.source_dir"));
 
-        // Пытаемся открыть диалог на последней папке
         String currentPath = sourceDirField.getText();
         if (currentPath != null && !currentPath.isEmpty()) {
             File initialDir = new File(currentPath);
@@ -321,10 +309,59 @@ public class MainController {
         }
     }
 
+    // >>> ИЗМЕНЕННЫЙ МЕТОД: Добавлен вызов авто-детектора <<<
     private void setSourceDirectory(File dir) {
         sourceDirField.setText(dir.getAbsolutePath());
         log(String.format(LanguageManager.getInstance().getString("log.dir_selected"), dir.getAbsolutePath()));
-        handleRescan();
+
+        // Попытка авто-определения пресета
+        String detectedPreset = autoDetectPreset(dir.toPath());
+        if (detectedPreset != null) {
+            // Если определили, переключаем комбо-бокс.
+            // Это автоматически триггернет Listener, который обновит поля и запустит Rescan.
+            log("🤖 Auto-detected project type: " + detectedPreset);
+            presetComboBox.getSelectionModel().select(detectedPreset);
+        } else {
+            // Если не определили, просто запускаем сканирование с текущим пресетом
+            handleRescan();
+        }
+    }
+
+    // >>> НОВЫЙ МЕТОД: Логика определения типа проекта <<<
+    private String autoDetectPreset(Path root) {
+        // 1. Godot
+        if (Files.exists(root.resolve("project.godot"))) return "Godot Engine";
+
+        // 2. Unity
+        if (Files.exists(root.resolve("Assets")) && Files.exists(root.resolve("ProjectSettings"))) return "Unity Engine";
+
+        // 3. Java (Maven/Gradle)
+        if (Files.exists(root.resolve("pom.xml")) ||
+                Files.exists(root.resolve("build.gradle")) ||
+                Files.exists(root.resolve("build.gradle.kts"))) {
+            return "Java (Maven/Gradle)";
+        }
+
+        // 4. Python
+        if (Files.exists(root.resolve("requirements.txt")) ||
+                Files.exists(root.resolve("pyproject.toml")) ||
+                Files.exists(root.resolve("venv")) ||
+                Files.exists(root.resolve(".venv"))) {
+            return "Python";
+        }
+
+        // 5. Web (Complex check)
+        if (Files.exists(root.resolve("package.json"))) {
+            // Если есть package.json, это веб. Но какой?
+            // Проверяем признаки TypeScript
+            if (Files.exists(root.resolve("tsconfig.json")) ||
+                    Files.exists(root.resolve("vite.config.ts"))) {
+                return "Web (TypeScript / React)";
+            }
+            return "Web (JavaScript / Classic)";
+        }
+
+        return null; // Ничего не нашли, оставляем как есть
     }
 
     @FXML private void handleRescan() {
@@ -478,7 +515,6 @@ public class MainController {
     @FXML private void handleMinimize() { if (stage != null) stage.setIconified(true); }
 
     @FXML private void handleClose() {
-        // Сохраняем настройки перед выходом
         savePreferences();
         Platform.exit();
     }
