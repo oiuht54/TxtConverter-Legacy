@@ -16,10 +16,11 @@ import java.util.stream.Stream;
 /**
  * Задача для копирования файлов и генерации отчетов.
  *
- * V3 Update:
- * - MAXIMUM Compression теперь удаляет отступы (для безопасных языков)
- * - Удаляет блочные и инлайн комментарии.
- * - Structure в режиме MAX использует плоский список (Flat List) для максимальной экономии.
+ * V4 Update (Stability Fix):
+ * - MAXIMUM Compression: Отключено удаление инлайн-комментариев ("хвостов"), так как это ломает
+ *   строковые литералы (Hex-цвета, URL, атрибуты C#).
+ * - Теперь удаляются только БЛОЧНЫЕ комментарии и ПОЛНЫЕ строки-комментарии.
+ * - Сплющивание (удаление отступов) работает для C-подобных языков.
  */
 public class ConverterTask extends Task<Void> {
 
@@ -134,7 +135,6 @@ public class ConverterTask extends Task<Void> {
 
     private String compressMax(String content, Path file) {
         // 1. Удаляем блочные комментарии (Java, C#, CSS, TS)
-        // Внимание: Это Regex, он может ошибиться внутри строки, но для задачи "Dump" это приемлемый риск
         content = BLOCK_COMMENT_PATTERN.matcher(content).replaceAll("");
 
         String[] lines = content.split("\\R");
@@ -148,51 +148,22 @@ public class ConverterTask extends Task<Void> {
             // 2. Удаляем пустые строки
             if (trimmed.isEmpty()) continue;
 
-            // 3. Удаляем строки, начинающиеся с комментариев
+            // 3. Удаляем ТОЛЬКО полные строки-комментарии.
+            // Мы НЕ трогаем строки, где комментарий начинается в середине (var c = "#fff"),
+            // так как отличить код от данных без лексера невозможно.
             if (trimmed.startsWith("//") || trimmed.startsWith("#")) continue;
 
-            // 4. Удаляем инлайн комментарии (грубо)
-            // Ищем // или #, но пытаемся не трогать http://
-            line = removeInlineComment(line);
-
-            // Если после удаления комментария строка опустела
-            if (line.trim().isEmpty()) continue;
-
-            // 5. Обработка отступов
+            // 4. Обработка отступов
             if (isSensitive) {
-                // Для Python/GDScript: Оставляем отступ слева, удаляем справа
+                // Для Python/GDScript/YAML: Оставляем отступ слева, удаляем справа
                 sb.append(stripTrailing(line)).append("\n");
             } else {
-                // Для остальных: Полный trim (удаляем отступ слева)
-                // Это превращает код в "плоский" список команд, экономя кучу токенов
-                sb.append(line.trim()).append("\n");
+                // Для C#/Java/JS: Полный trim (удаляем отступ слева -> Flat Code)
+                // Это безопасно экономит токены, не ломая данные внутри строк
+                sb.append(trimmed).append("\n");
             }
         }
         return sb.toString().trim();
-    }
-
-    private String removeInlineComment(String line) {
-        // Простая эвристика: если есть //, обрезаем.
-        // Исключение: http:// или https:// (часто в строках)
-        int doubleSlash = line.indexOf("//");
-        if (doubleSlash != -1) {
-            // Проверяем, не является ли это частью URL
-            if (doubleSlash > 0 && line.charAt(doubleSlash - 1) == ':') {
-                // Похоже на URL, оставляем как есть (или ищем следующий //)
-            } else {
-                return line.substring(0, doubleSlash);
-            }
-        }
-
-        // Для Godot/Python комментарии через #
-        int hash = line.indexOf("#");
-        if (hash != -1) {
-            // Исключаем цветовые коды (примерно) или макросы
-            // Но для агрессивного сжатия просто режем
-            return line.substring(0, hash);
-        }
-
-        return line;
     }
 
     private boolean isWhitespaceSensitive(Path path) {
