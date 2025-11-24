@@ -14,7 +14,8 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+<!-- ДОБАВЛЕН fx:id="rootBox" для Drag&Drop -->
+<VBox fx:id="rootBox" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="TartarusCore.TxtConverter.MainController" styleClass="root">
 
     <HBox fx:id="titleBar" alignment="CENTER_LEFT" spacing="10" styleClass="custom-title-bar">
@@ -52,7 +53,7 @@
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
                         <children>
                             <Label fx:id="lblPreset" text="Preset:"/>
-                            <ComboBox fx:id="presetComboBox" prefWidth="150.0"/>
+                            <ComboBox fx:id="presetComboBox" prefWidth="250.0"/>
                         </children>
                     </HBox>
                     <HBox alignment="CENTER_LEFT" spacing="10.0">
