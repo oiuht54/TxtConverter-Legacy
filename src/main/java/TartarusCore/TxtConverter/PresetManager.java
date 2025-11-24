@@ -1,10 +1,10 @@
 package TartarusCore.TxtConverter;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.Stream;
 
 /**
  * Класс, отвечающий за управление пресетами и авто-определение типа проекта.
@@ -93,17 +93,11 @@ public class PresetManager {
         // 2. Unity
         if (Files.exists(root.resolve("Assets")) && Files.exists(root.resolve("ProjectSettings"))) return "Unity Engine";
 
-        // 3. C# / .NET (Generic)
-        // Unity check handles Unity projects. Here we catch generic .NET
-        try (Stream<Path> entries = Files.list(root)) {
-            boolean isDotNet = entries.anyMatch(p -> {
-                String name = p.getFileName().toString().toLowerCase();
-                return name.endsWith(".sln") || name.endsWith(".csproj");
-            });
-            if (isDotNet) return "C# (.NET / Visual Studio)";
-        } catch (IOException e) {
-            // ignore access errors
-        }
+        // 3. C# / .NET (Improved detection)
+        // Проверяем наличие .sln файла (наиболее надежный признак)
+        if (hasFileByPattern(root, "*.sln")) return "C# (.NET / Visual Studio)";
+        // Проверяем наличие .csproj, если нет решения
+        if (hasFileByPattern(root, "*.csproj")) return "C# (.NET / Visual Studio)";
 
         // 4. Java (Maven/Gradle)
         if (Files.exists(root.resolve("pom.xml")) ||
@@ -132,5 +126,16 @@ public class PresetManager {
         }
 
         return null; // Ничего не нашли
+    }
+
+    /**
+     * Вспомогательный метод для поиска файла по маске в директории (не рекурсивно).
+     */
+    private boolean hasFileByPattern(Path dir, String globPattern) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, globPattern)) {
+            return stream.iterator().hasNext();
+        } catch (IOException e) {
+            return false;
+        }
     }
 }
