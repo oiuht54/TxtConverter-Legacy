@@ -5,7 +5,9 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -14,13 +16,14 @@ import javafx.util.StringConverter;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class MainController {
-    // ... (поля presets, stage и т.д. без изменений)
+
     private final Map<String, String> presets = new LinkedHashMap<>();
     private final Map<String, String> ignoredFolderPresets = new LinkedHashMap<>();
     private Stage stage;
@@ -30,6 +33,7 @@ public class MainController {
     private Set<Path> filesSelectedForMerge = new HashSet<>();
 
     // UI Elements
+    @FXML private VBox rootBox;
     @FXML private Label lblTitle;
     @FXML private Label lblSourceDir;
     @FXML private Label lblPreset;
@@ -47,7 +51,6 @@ public class MainController {
     @FXML private CheckBox generateStructureFileCheckbox;
     @FXML private CheckBox compactStructureCheckbox;
 
-    // >>> ИЗМЕНЕНИЕ: ComboBox вместо CheckBox <<<
     @FXML private Label lblCompression;
     @FXML private ComboBox<CompressionLevel> compressionComboBox;
 
@@ -67,26 +70,87 @@ public class MainController {
         setupPresets();
         setupPresetListener();
         setupWindowDrag();
-        setupCompressionCombo(); // <--- Настройка комбобокса
+        setupCompressionCombo();
+        setupDragAndDrop();
 
-        generateMergedFileCheckbox.setSelected(true);
-        generateStructureFileCheckbox.setSelected(false);
-        compactStructureCheckbox.setSelected(true);
         compactStructureCheckbox.disableProperty().bind(generateStructureFileCheckbox.selectedProperty().not());
 
-        updateButtonStates();
+        loadPreferences();
 
         LanguageManager.getInstance().addListener(this::updateTexts);
-        updateTexts(); // Первичный вызов
+        updateTexts();
 
+        updateButtonStates();
         log(LanguageManager.getInstance().getString("log.app_ready"));
+    }
+
+    private void setupDragAndDrop() {
+        if (rootBox == null) return;
+
+        rootBox.setOnDragOver(event -> {
+            if (event.getDragboard().hasFiles()) {
+                List<File> files = event.getDragboard().getFiles();
+                if (files.size() == 1 && files.get(0).isDirectory()) {
+                    event.acceptTransferModes(TransferMode.COPY);
+                }
+            }
+            event.consume();
+        });
+
+        rootBox.setOnDragDropped(event -> {
+            boolean success = false;
+            if (event.getDragboard().hasFiles()) {
+                List<File> files = event.getDragboard().getFiles();
+                if (files.size() == 1 && files.get(0).isDirectory()) {
+                    File folder = files.get(0);
+                    setSourceDirectory(folder);
+                    success = true;
+                }
+            }
+            event.setDropCompleted(success);
+            event.consume();
+        });
+    }
+
+    private void loadPreferences() {
+        PreferenceManager prefs = PreferenceManager.getInstance();
+
+        String lastDir = prefs.getString(ProjectConstants.PREF_LAST_DIR, "");
+        if (!lastDir.isEmpty() && Files.exists(Paths.get(lastDir))) {
+            sourceDirField.setText(lastDir);
+        }
+
+        String lastPreset = prefs.getString(ProjectConstants.PREF_LAST_PRESET, "Unity Engine");
+        if (presets.containsKey(lastPreset)) {
+            presetComboBox.getSelectionModel().select(lastPreset);
+        }
+
+        generateStructureFileCheckbox.setSelected(prefs.getBoolean(ProjectConstants.PREF_GEN_STRUCTURE, false));
+        compactStructureCheckbox.setSelected(prefs.getBoolean(ProjectConstants.PREF_COMPACT_MODE, true));
+        generateMergedFileCheckbox.setSelected(prefs.getBoolean(ProjectConstants.PREF_GEN_MERGED, true));
+        compressionComboBox.setValue(prefs.getCompressionLevel());
+
+        if (!sourceDirField.getText().isEmpty()) {
+            updateMergedCheckboxText();
+        }
+    }
+
+    private void savePreferences() {
+        PreferenceManager prefs = PreferenceManager.getInstance();
+        prefs.saveString(ProjectConstants.PREF_LAST_DIR, sourceDirField.getText());
+        prefs.saveString(ProjectConstants.PREF_LAST_PRESET, presetComboBox.getValue());
+        prefs.saveBoolean(ProjectConstants.PREF_GEN_STRUCTURE, generateStructureFileCheckbox.isSelected());
+        prefs.saveBoolean(ProjectConstants.PREF_COMPACT_MODE, compactStructureCheckbox.isSelected());
+        prefs.saveBoolean(ProjectConstants.PREF_GEN_MERGED, generateMergedFileCheckbox.isSelected());
+        prefs.saveCompressionLevel(compressionComboBox.getValue());
     }
 
     private void setupCompressionCombo() {
         compressionComboBox.getItems().addAll(CompressionLevel.values());
-        compressionComboBox.setValue(CompressionLevel.SMART); // Дефолт
+        if (compressionComboBox.getValue() == null) {
+            compressionComboBox.setValue(CompressionLevel.SMART);
+        }
 
-        // Конвертер для красивого отображения названий
         compressionComboBox.setConverter(new StringConverter<CompressionLevel>() {
             @Override
             public String toString(CompressionLevel object) {
@@ -99,11 +163,8 @@ public class MainController {
                     default: return object.name();
                 }
             }
-
             @Override
-            public CompressionLevel fromString(String string) {
-                return null; // Не используется
-            }
+            public CompressionLevel fromString(String string) { return null; }
         });
     }
 
@@ -124,13 +185,10 @@ public class MainController {
         generateStructureFileCheckbox.setText(String.format(lm.getString("ui.structure_cb"), structFileName));
         compactStructureCheckbox.setText(lm.getString("ui.compact_structure_cb"));
 
-        // >>> Обновление текста метки и сброс конвертера, чтобы обновить список <<<
         lblCompression.setText(lm.getString("ui.compression_label"));
-        // Трюк для обновления текста внутри ComboBox при смене языка
         CompressionLevel current = compressionComboBox.getValue();
         compressionComboBox.setConverter(compressionComboBox.getConverter());
         compressionComboBox.setValue(current);
-        // ------------------------------------------------------------------------
 
         updateMergedCheckboxText();
 
@@ -138,12 +196,11 @@ public class MainController {
         convertBtn.setText(lm.getString("ui.convert_btn"));
         lblLog.setText(lm.getString("ui.log_label"));
 
-        if (statusLabel.textProperty().isBound() == false) {
+        if (!statusLabel.textProperty().isBound()) {
             statusLabel.setText(lm.getString("ui.status_ready"));
         }
     }
 
-    // ... (остальные методы updateMergedCheckboxText, setupPresets, setupPresetListener, setupWindowDrag, handleSettings, handleSelectSource, handleRescan, handleSelectFiles... БЕЗ ИЗМЕНЕНИЙ)
     private void updateMergedCheckboxText() {
         LanguageManager lm = LanguageManager.getInstance();
         String fileName;
@@ -156,29 +213,47 @@ public class MainController {
         generateMergedFileCheckbox.setText(String.format(lm.getString("ui.merged_cb"), fileName));
     }
 
-    // ... setupPresets ...
     private void setupPresets() {
         presets.put("Manual", "");
+
+        // GameDev
         presets.put("Godot Engine", "gd, tscn, tres, gdshader, godot");
         presets.put("Unity Engine", "cs, shader, cginc, txt, json, xml, asmdef, asset, inputactions");
+
+        // Java
         presets.put("Java (Maven/Gradle)", "java, xml, properties, fxml, gradle, groovy");
-        presets.put("Web Frontend", "html, css, js, ts, scss, json");
+
+        // Web
+        presets.put("Web (JavaScript / Classic)", "js, mjs, html, css, json");
+        presets.put("Web (TypeScript / React)", "ts, tsx, jsx, html, css, scss, less, json, vue, svelte");
+
+        // Python
+        presets.put("Python", "py, requirements.txt, yaml, yml, json");
 
         ignoredFolderPresets.put("Manual", "");
-        ignoredFolderPresets.put("Godot Engine", ".godot, export_presets");
-        ignoredFolderPresets.put("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings");
-        ignoredFolderPresets.put("Java (Maven/Gradle)", "target, .idea, build");
-        ignoredFolderPresets.put("Web Frontend", "node_modules, dist, build");
+        ignoredFolderPresets.put("Godot Engine", ".godot, export_presets, .import");
+        ignoredFolderPresets.put("Unity Engine", "Library, Temp, obj, bin, ProjectSettings, Logs, UserSettings, .vs, .idea");
+        ignoredFolderPresets.put("Java (Maven/Gradle)", "target, .idea, build, .settings, bin, out");
+
+        String webIgnored = "node_modules, dist, build, .next, .nuxt, coverage, .git, .vscode, .idea";
+        ignoredFolderPresets.put("Web (JavaScript / Classic)", webIgnored);
+        ignoredFolderPresets.put("Web (TypeScript / React)", webIgnored);
+
+        ignoredFolderPresets.put("Python", "__pycache__, venv, env, .venv, .git, .idea, .vscode, build, dist, egg-info");
 
         presetComboBox.getItems().addAll(presets.keySet());
-        presetComboBox.getSelectionModel().select("Unity Engine");
     }
 
     private void setupPresetListener() {
         presetComboBox.getSelectionModel().selectedItemProperty().addListener((options, oldValue, newValue) -> {
             if (newValue != null) {
-                extensionsField.setText(presets.get(newValue));
-                ignoredFoldersField.setText(ignoredFolderPresets.get(newValue));
+                // Если пресет Manual, мы НЕ перезаписываем поля, чтобы не стереть пользовательский ввод,
+                // если только старое значение не было пустым (первый запуск)
+                boolean isManual = "Manual".equals(newValue);
+                if (!isManual) {
+                    extensionsField.setText(presets.get(newValue));
+                    ignoredFoldersField.setText(ignoredFolderPresets.get(newValue));
+                }
 
                 String msg = String.format(LanguageManager.getInstance().getString("log.preset_selected"), newValue);
                 log(msg);
@@ -188,9 +263,6 @@ public class MainController {
                 }
             }
         });
-        String defaultPreset = presetComboBox.getSelectionModel().getSelectedItem();
-        extensionsField.setText(presets.get(defaultPreset));
-        ignoredFoldersField.setText(ignoredFolderPresets.get(defaultPreset));
     }
 
     private void setupWindowDrag() {
@@ -222,12 +294,74 @@ public class MainController {
     @FXML private void handleSelectSource() {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle(LanguageManager.getInstance().getString("ui.source_dir"));
+
+        String currentPath = sourceDirField.getText();
+        if (currentPath != null && !currentPath.isEmpty()) {
+            File initialDir = new File(currentPath);
+            if (initialDir.exists() && initialDir.isDirectory()) {
+                directoryChooser.setInitialDirectory(initialDir);
+            }
+        }
+
         File selectedDirectory = directoryChooser.showDialog(getStage());
         if (selectedDirectory != null) {
-            sourceDirField.setText(selectedDirectory.getAbsolutePath());
-            log(String.format(LanguageManager.getInstance().getString("log.dir_selected"), selectedDirectory.getAbsolutePath()));
+            setSourceDirectory(selectedDirectory);
+        }
+    }
+
+    // >>> ИЗМЕНЕННЫЙ МЕТОД: Добавлен вызов авто-детектора <<<
+    private void setSourceDirectory(File dir) {
+        sourceDirField.setText(dir.getAbsolutePath());
+        log(String.format(LanguageManager.getInstance().getString("log.dir_selected"), dir.getAbsolutePath()));
+
+        // Попытка авто-определения пресета
+        String detectedPreset = autoDetectPreset(dir.toPath());
+        if (detectedPreset != null) {
+            // Если определили, переключаем комбо-бокс.
+            // Это автоматически триггернет Listener, который обновит поля и запустит Rescan.
+            log("🤖 Auto-detected project type: " + detectedPreset);
+            presetComboBox.getSelectionModel().select(detectedPreset);
+        } else {
+            // Если не определили, просто запускаем сканирование с текущим пресетом
             handleRescan();
         }
+    }
+
+    // >>> НОВЫЙ МЕТОД: Логика определения типа проекта <<<
+    private String autoDetectPreset(Path root) {
+        // 1. Godot
+        if (Files.exists(root.resolve("project.godot"))) return "Godot Engine";
+
+        // 2. Unity
+        if (Files.exists(root.resolve("Assets")) && Files.exists(root.resolve("ProjectSettings"))) return "Unity Engine";
+
+        // 3. Java (Maven/Gradle)
+        if (Files.exists(root.resolve("pom.xml")) ||
+                Files.exists(root.resolve("build.gradle")) ||
+                Files.exists(root.resolve("build.gradle.kts"))) {
+            return "Java (Maven/Gradle)";
+        }
+
+        // 4. Python
+        if (Files.exists(root.resolve("requirements.txt")) ||
+                Files.exists(root.resolve("pyproject.toml")) ||
+                Files.exists(root.resolve("venv")) ||
+                Files.exists(root.resolve(".venv"))) {
+            return "Python";
+        }
+
+        // 5. Web (Complex check)
+        if (Files.exists(root.resolve("package.json"))) {
+            // Если есть package.json, это веб. Но какой?
+            // Проверяем признаки TypeScript
+            if (Files.exists(root.resolve("tsconfig.json")) ||
+                    Files.exists(root.resolve("vite.config.ts"))) {
+                return "Web (TypeScript / React)";
+            }
+            return "Web (JavaScript / Classic)";
+        }
+
+        return null; // Ничего не нашли, оставляем как есть
     }
 
     @FXML private void handleRescan() {
@@ -312,7 +446,6 @@ public class MainController {
         logArea.clear();
         log(LanguageManager.getInstance().getString("log.conversion_start"));
 
-        // >>> Передаем выбранный уровень сжатия <<<
         ConverterTask converterTask = new ConverterTask(
                 sourceDirField.getText(),
                 allFoundFiles,
@@ -320,7 +453,7 @@ public class MainController {
                 getIgnoredFolders(),
                 generateStructureFileCheckbox.isSelected(),
                 compactStructureCheckbox.isSelected(),
-                compressionComboBox.getValue(), // Передаем Enum
+                compressionComboBox.getValue(),
                 generateMergedFileCheckbox.isSelected()
         );
 
@@ -350,7 +483,6 @@ public class MainController {
         new Thread(converterTask).start();
     }
 
-    // ... helpers ...
     private void setUiBlocked(boolean blocked) {
         rescanBtn.setDisable(blocked);
         selectFilesBtn.setDisable(blocked);
@@ -381,7 +513,11 @@ public class MainController {
     }
 
     @FXML private void handleMinimize() { if (stage != null) stage.setIconified(true); }
-    @FXML private void handleClose() { Platform.exit(); }
+
+    @FXML private void handleClose() {
+        savePreferences();
+        Platform.exit();
+    }
 
     private void log(String message) {
         Platform.runLater(() -> logArea.appendText(message + "\n"));
