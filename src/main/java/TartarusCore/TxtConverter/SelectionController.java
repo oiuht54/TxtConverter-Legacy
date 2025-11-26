@@ -20,20 +20,21 @@ public class SelectionController {
     private double xOffset = 0;
     private double yOffset = 0;
     private Optional<Set<Path>> result = Optional.empty();
-    // Этот Map - ключ к определению, является ли узел файлом или категорией
+
+    // Храним связь только для ФАЙЛОВ. Категории в эту карту не попадают.
     private final Map<CheckBoxTreeItem<String>, Path> itemToPathMap = new HashMap<>();
 
     @FXML
     public void initialize() {
         setupWindowDrag();
 
-        // >>> ГЛАВНОЕ ИСПРАВЛЕНИЕ: Используем кастомную "фабрику ячеек" <<<
+        // Настраиваем фабрику ячеек.
+        // Мы используем стандартное поведение CheckBoxTreeCell, но добавляем CSS класс для категорий.
         fileTreeView.setCellFactory(tv -> new CheckBoxTreeCell<String>() {
             @Override
             public void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty); // Сначала вызываем родительскую реализацию
+                super.updateItem(item, empty); // Обязательно вызываем super, чтобы нарисовался чекбокс и текст
 
-                // Очищаем ячейку, если она пустая
                 if (empty || item == null) {
                     getStyleClass().remove("category-tree-item");
                     setText(null);
@@ -43,17 +44,14 @@ public class SelectionController {
 
                 CheckBoxTreeItem<String> treeItem = (CheckBoxTreeItem<String>) getTreeItem();
 
-                // Проверяем, является ли этот узел категорией (т.е. его нет в нашей карте файлов)
+                // Если элемента нет в карте путей файлов — значит это категория
                 if (!itemToPathMap.containsKey(treeItem)) {
-                    // ЭТО КАТЕГОРИЯ
-                    getStyleClass().add("category-tree-item"); // Применяем CSS-стиль "bubble"
-                    setGraphic(null); // Прячем чекбокс
-                    setText(item); // Отображаем чистый текст
+                    if (!getStyleClass().contains("category-tree-item")) {
+                        getStyleClass().add("category-tree-item");
+                    }
+                    // ВАЖНО: Мы НЕ вызываем setGraphic(null), поэтому чекбокс рисуется автоматически.
                 } else {
-                    // ЭТО ФАЙЛ
                     getStyleClass().remove("category-tree-item");
-                    // Текст и чекбокс уже установлены вызовом super.updateItem(),
-                    // так что здесь ничего делать не нужно.
                 }
             }
         });
@@ -64,10 +62,15 @@ public class SelectionController {
     }
 
     public void initData(List<Path> allFiles, Set<Path> initiallySelected, Path rootPath) {
+        // Корневой элемент (скрыт, но управляет всем)
         CheckBoxTreeItem<String> rootItem = new CheckBoxTreeItem<>("Files");
+        rootItem.setExpanded(true);
+        rootItem.setSelected(true); // По умолчанию пытаемся выбрать всё
+
         fileTreeView.setRoot(rootItem);
         fileTreeView.setShowRoot(false);
 
+        // Группируем файлы по расширениям
         Map<String, List<Path>> groupedByExtension = allFiles.stream()
                 .collect(Collectors.groupingBy(this::getFileExtension, LinkedHashMap::new, Collectors.toList()));
 
@@ -75,19 +78,29 @@ public class SelectionController {
             String extension = entry.getKey();
             List<Path> filesInGroup = entry.getValue();
 
-            // Создаем узел-категорию. БЕЗ ХАКОВ С ТЕКСТОМ.
+            // Создаем элемент категории
             String categoryName = extension + " (" + filesInGroup.size() + " files)";
             CheckBoxTreeItem<String> categoryItem = new CheckBoxTreeItem<>(categoryName);
-            categoryItem.setExpanded(true);
+            categoryItem.setExpanded(true); // Категории развернуты по умолчанию
+
+            // Добавляем категорию в корень
             rootItem.getChildren().add(categoryItem);
 
+            // Добавляем файлы в категорию
             for (Path file : filesInGroup) {
                 String displayPath = rootPath.relativize(file).toString();
                 CheckBoxTreeItem<String> fileItem = new CheckBoxTreeItem<>(displayPath);
-                fileItem.setSelected(initiallySelected.contains(file));
+
+                // Сначала добавляем ребенка в родителя
                 categoryItem.getChildren().add(fileItem);
 
-                // Добавляем в карту ТОЛЬКО узлы-файлы
+                // И только ПОТОМ устанавливаем состояние.
+                // Это гарантирует, что родитель (categoryItem) "поймает" событие изменения
+                // и сам проставит себе галочку, если все дети выбраны.
+                boolean isSelected = initiallySelected.contains(file);
+                fileItem.setSelected(isSelected);
+
+                // Сохраняем связь элемента с реальным путем к файлу
                 itemToPathMap.put(fileItem, file);
             }
         }
@@ -113,21 +126,43 @@ public class SelectionController {
         });
     }
 
-    @FXML private void handleSelectAll() { itemToPathMap.keySet().forEach(item -> item.setSelected(true)); }
-    @FXML private void handleDeselectAll() { itemToPathMap.keySet().forEach(item -> item.setSelected(false)); }
-    @FXML private void handleConfirm() {
+    @FXML
+    private void handleSelectAll() {
+        if (fileTreeView.getRoot() != null) {
+            // CheckBoxTreeItem в JavaFX распространяет состояние вниз по иерархии
+            ((CheckBoxTreeItem<String>)fileTreeView.getRoot()).setSelected(true);
+        }
+    }
+
+    @FXML
+    private void handleDeselectAll() {
+        if (fileTreeView.getRoot() != null) {
+            ((CheckBoxTreeItem<String>)fileTreeView.getRoot()).setSelected(false);
+        }
+    }
+
+    @FXML
+    private void handleConfirm() {
         Set<Path> selectedFiles = new HashSet<>();
+
+        // Собираем только те элементы, которые являются файлами (есть в map)
         itemToPathMap.forEach((item, path) -> {
             if (item.isSelected()) {
                 selectedFiles.add(path);
             }
         });
+
         result = Optional.of(selectedFiles);
         dialogStage.close();
     }
-    @FXML private void handleCancel() {
+
+    @FXML
+    private void handleCancel() {
         result = Optional.empty();
         dialogStage.close();
     }
-    public Optional<Set<Path>> getSelectedFiles() { return result; }
+
+    public Optional<Set<Path>> getSelectedFiles() {
+        return result;
+    }
 }
