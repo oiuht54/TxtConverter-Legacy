@@ -28,11 +28,12 @@ public class SelectionController {
     public void initialize() {
         setupWindowDrag();
 
-        // Настраиваем фабрику ячеек для отображения чекбоксов
+        // Настраиваем фабрику ячеек.
+        // Мы используем стандартное поведение CheckBoxTreeCell, но добавляем CSS класс для категорий.
         fileTreeView.setCellFactory(tv -> new CheckBoxTreeCell<String>() {
             @Override
             public void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty); // Важно вызвать родителя
+                super.updateItem(item, empty); // Обязательно вызываем super, чтобы нарисовался чекбокс и текст
 
                 if (empty || item == null) {
                     getStyleClass().remove("category-tree-item");
@@ -43,16 +44,13 @@ public class SelectionController {
 
                 CheckBoxTreeItem<String> treeItem = (CheckBoxTreeItem<String>) getTreeItem();
 
-                // Проверяем, является ли элемент категорией (его нет в мапе путей)
+                // Если элемента нет в карте путей файлов — значит это категория
                 if (!itemToPathMap.containsKey(treeItem)) {
-                    // Это категория
                     if (!getStyleClass().contains("category-tree-item")) {
                         getStyleClass().add("category-tree-item");
                     }
-                    // МЫ УБРАЛИ setGraphic(null), чтобы чекбокс остался видимым.
-                    // CheckBoxTreeItem автоматически обрабатывает логику выбора детей.
+                    // ВАЖНО: Мы НЕ вызываем setGraphic(null), поэтому чекбокс рисуется автоматически.
                 } else {
-                    // Это файл
                     getStyleClass().remove("category-tree-item");
                 }
             }
@@ -64,10 +62,10 @@ public class SelectionController {
     }
 
     public void initData(List<Path> allFiles, Set<Path> initiallySelected, Path rootPath) {
+        // Корневой элемент (скрыт, но управляет всем)
         CheckBoxTreeItem<String> rootItem = new CheckBoxTreeItem<>("Files");
-        // Корневой элемент должен быть "независимым" или раскрытым, но так как мы его скрываем, это не важно.
-        // Важно, чтобы категории работали правильно.
         rootItem.setExpanded(true);
+        rootItem.setSelected(true); // По умолчанию пытаемся выбрать всё
 
         fileTreeView.setRoot(rootItem);
         fileTreeView.setShowRoot(false);
@@ -83,8 +81,9 @@ public class SelectionController {
             // Создаем элемент категории
             String categoryName = extension + " (" + filesInGroup.size() + " files)";
             CheckBoxTreeItem<String> categoryItem = new CheckBoxTreeItem<>(categoryName);
-            categoryItem.setExpanded(true); // Разворачиваем категорию по умолчанию
+            categoryItem.setExpanded(true); // Категории развернуты по умолчанию
 
+            // Добавляем категорию в корень
             rootItem.getChildren().add(categoryItem);
 
             // Добавляем файлы в категорию
@@ -92,12 +91,14 @@ public class SelectionController {
                 String displayPath = rootPath.relativize(file).toString();
                 CheckBoxTreeItem<String> fileItem = new CheckBoxTreeItem<>(displayPath);
 
-                // Устанавливаем начальное состояние.
-                // ВАЖНО: CheckBoxTreeItem автоматически обновит состояние родителя (categoryItem),
-                // если мы добавляем в него детей с уже установленным состоянием.
-                fileItem.setSelected(initiallySelected.contains(file));
-
+                // Сначала добавляем ребенка в родителя
                 categoryItem.getChildren().add(fileItem);
+
+                // И только ПОТОМ устанавливаем состояние.
+                // Это гарантирует, что родитель (categoryItem) "поймает" событие изменения
+                // и сам проставит себе галочку, если все дети выбраны.
+                boolean isSelected = initiallySelected.contains(file);
+                fileItem.setSelected(isSelected);
 
                 // Сохраняем связь элемента с реальным путем к файлу
                 itemToPathMap.put(fileItem, file);
@@ -127,9 +128,8 @@ public class SelectionController {
 
     @FXML
     private void handleSelectAll() {
-        // Выбираем корневой элемент, это должно каскадно выбрать всё, если root связан.
-        // Но так как root скрыт и мы работаем с itemToPathMap, надежнее пройтись по root children.
         if (fileTreeView.getRoot() != null) {
+            // CheckBoxTreeItem в JavaFX распространяет состояние вниз по иерархии
             ((CheckBoxTreeItem<String>)fileTreeView.getRoot()).setSelected(true);
         }
     }
@@ -145,8 +145,7 @@ public class SelectionController {
     private void handleConfirm() {
         Set<Path> selectedFiles = new HashSet<>();
 
-        // Проходим только по мапе файлов.
-        // Состояние категорий нас не волнует при сборе, оно служит только для UI удобства.
+        // Собираем только те элементы, которые являются файлами (есть в map)
         itemToPathMap.forEach((item, path) -> {
             if (item.isSelected()) {
                 selectedFiles.add(path);
