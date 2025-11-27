@@ -10,7 +10,6 @@ import java.text.DecimalFormatSymbols;
 public class GodotCompactConverter {
 
     // --- Constants & Patterns ---
-    private static final Pattern HEADER_PATTERN = Pattern.compile("\\[(.*?)\\]");
     private static final Pattern ATTR_PATTERN = Pattern.compile("(\\w+)=((?:\"[^\"]*\")|(?:[^\\s\\]]+))");
     private static final Pattern TRANSFORM_PATTERN = Pattern.compile("Transform3D\\((.*?)\\)");
     private static final Pattern VECTOR_PATTERN = Pattern.compile("(Vector[234])\\((.*?)\\)");
@@ -34,7 +33,10 @@ public class GodotCompactConverter {
             Map.entry("GPUParticles3D", "GPU_Part"),
             Map.entry("CPUParticles3D", "CPU_Part"),
             Map.entry("Script", "Scr"),
-            Map.entry("PackedScene", "Scene")
+            Map.entry("PackedScene", "Scene"),
+            Map.entry("FastNoiseLite", "Noise"),
+            Map.entry("NoiseTexture2D", "NoiseTex"),
+            Map.entry("ShaderMaterial", "ShaderMat")
     );
 
     private static final Set<String> IGNORED_PROPS = Set.of(
@@ -61,23 +63,24 @@ public class GodotCompactConverter {
 
     // --- Processing Logic ---
     private String process(String content, String fileName) {
-        parseFile(content, fileName);
+        parseFile(content);
         optimizeTree(rootNodes);
 
-        output.append(">>> ").append(fileName).append(" (Godot Compact v3)\n");
-        // Print root nodes (usually just one, but resources file can have multiple)
+        // Removed the file header generation to avoid duplication with ConverterTask
+        // Also removed the version tag to save tokens
+
         if (rootNodes.size() == 1) {
             printNode(rootNodes.get(0), "");
         } else {
-            for (GdNode node : rootNodes) {
-                printNode(node, "");
-                output.append("\n");
+            for (int i = 0; i < rootNodes.size(); i++) {
+                printNode(rootNodes.get(i), "");
+                if (i < rootNodes.size() - 1) output.append("\n");
             }
         }
         return output.toString();
     }
 
-    private void parseFile(String content, String fileName) {
+    private void parseFile(String content) {
         String[] lines = content.split("\\R");
 
         // Pass 1: Extract External Resources
@@ -129,7 +132,6 @@ public class GodotCompactConverter {
                         if (parentNode != null) {
                             parentNode.children.add(currentNode);
                         } else {
-                            // Fallback if parent not found (rare in valid tscn)
                             rootNodes.add(currentNode);
                         }
                     }
@@ -137,6 +139,7 @@ public class GodotCompactConverter {
                     currentNode = new GdNode();
                     currentNode.type = cleanStr(attrs.get("type"));
                     currentNode.isSubResource = true;
+                    // Important: Store in cache so we can inline it later
                     subResourceCache.put(cleanStr(attrs.get("id")), currentNode);
                 } else if (typeKey.equals("resource")) {
                     currentNode = new GdNode();
@@ -144,7 +147,6 @@ public class GodotCompactConverter {
                     currentNode.type = "Resource";
                     rootNodes.add(currentNode);
                 } else if (typeKey.equals("connection")) {
-                    // Store signals in the source node
                     String from = cleanStr(attrs.get("from"));
                     String signal = cleanStr(attrs.get("signal"));
                     String to = cleanStr(attrs.get("to"));
@@ -178,24 +180,21 @@ public class GodotCompactConverter {
     private void optimizeTree(List<GdNode> nodes) {
         if (nodes == null || nodes.isEmpty()) return;
 
-        // 1. Recursively optimize children first
         for (GdNode node : nodes) {
             optimizeTree(node.children);
         }
 
-        // 2. Collapse identical siblings
         List<GdNode> optimizedList = new ArrayList<>();
         int i = 0;
         while (i < nodes.size()) {
             GdNode current = nodes.get(i);
             int j = i + 1;
-            // Count how many subsequent nodes are "similar" to current
             while (j < nodes.size() && areNodesSimilar(current, nodes.get(j))) {
                 j++;
             }
 
             int count = j - i;
-            if (count >= 3) { // Threshold to collapse
+            if (count >= 3) {
                 GdNode groupNode = new GdNode();
                 groupNode.name = "@Repeated(" + count + ") \"" + current.type + "\"";
                 groupNode.type = current.type;
@@ -204,10 +203,8 @@ public class GodotCompactConverter {
                 groupNode.properties.remove("transform");
                 groupNode.properties.remove("position");
                 groupNode.properties.remove("rotation");
-                // We keep one set of children as representative
                 groupNode.children = current.children;
                 groupNode.signals = current.signals;
-                // Add a hint about variation
                 groupNode.properties.put("Layout", "Grid/Procedural");
 
                 optimizedList.add(groupNode);
@@ -226,7 +223,6 @@ public class GodotCompactConverter {
         if (!Objects.equals(a.type, b.type)) return false;
         if (a.children.size() != b.children.size()) return false;
 
-        // Compare properties (ignoring transform/position/rotation/name)
         Set<String> allKeys = new HashSet<>();
         allKeys.addAll(a.properties.keySet());
         allKeys.addAll(b.properties.keySet());
@@ -238,11 +234,9 @@ public class GodotCompactConverter {
             if (!Objects.equals(v1, v2)) return false;
         }
 
-        // Shallow compare children types
         for (int k = 0; k < a.children.size(); k++) {
             if (!Objects.equals(a.children.get(k).type, b.children.get(k).type)) return false;
         }
-
         return true;
     }
 
@@ -256,10 +250,8 @@ public class GodotCompactConverter {
         if (node.isGroupPlaceholder) {
             output.append(node.name);
         } else if (node.isSubResource) {
-            // SubResources usually printed inline, but if printed standalone:
             output.append("@Sub ").append(typeAbbr);
         } else {
-            // Node name + Type
             if (node.name.equals("RootRes") || node.name.equals("RootResource")) {
                 output.append("ROOT");
             } else {
@@ -274,34 +266,21 @@ public class GodotCompactConverter {
 
         List<String> props = new ArrayList<>();
 
-        // Properties
         for (Map.Entry<String, String> entry : node.properties.entrySet()) {
             String key = shortenKey(entry.getKey());
+            // RECURSIVE CALL HERE via formatValue
             String val = formatValue(entry.getValue());
-
-            // If value refers to a SubResource, try to inline it if it's simple
-            String subId = extractSubResourceId(val);
-            if (subId != null && subResourceCache.containsKey(subId)) {
-                val = formatSubResourceInline(subResourceCache.get(subId));
-            }
-
             props.add(key + ":" + val);
         }
 
-        // Signals
         for (String sig : node.signals) {
             props.add("$Sig:" + sig);
         }
-
-        // Script
-        // Often script is in properties, but if logic needs specific handling:
-        // (Handled by general properties loop usually, but check for ExtResource alias)
 
         if (!props.isEmpty()) {
             output.append(" ").append(String.join(", ", props));
         }
 
-        // Children
         if (!node.children.isEmpty()) {
             if (!props.isEmpty()) output.append(",");
             output.append("\n").append(indent).append("  children: [\n");
@@ -318,12 +297,75 @@ public class GodotCompactConverter {
         output.append("}");
     }
 
+    // --- Value Formatting with RECURSION ---
+
+    private String formatValue(String val) {
+        if (val == null) return "null";
+
+        // 1. Check if it's a SubResource REFERENCE. If so, INLINE IT.
+        String subId = extractSubResourceId(val);
+        if (subId != null && subResourceCache.containsKey(subId)) {
+            // RECURSION HAPPENS HERE:
+            // formatSubResourceInline calls printNode-like logic, which iterates props,
+            // which calls formatValue again.
+            return formatSubResourceInline(subResourceCache.get(subId));
+        }
+
+        // 2. Check ExtResource (Aliasing)
+        String extId = extractExtResourceId(val);
+        if (extId != null && extResourceAliases.containsKey(extId)) {
+            return extResourceAliases.get(extId);
+        }
+
+        // 3. Vectors [x, y, z]
+        Matcher vecM = VECTOR_PATTERN.matcher(val);
+        if (vecM.matches()) {
+            String[] parts = vecM.group(2).split(",");
+            return "[" + Arrays.stream(parts).map(this::cleanFloat).collect(Collectors.joining(",")) + "]";
+        }
+
+        // 4. Colors
+        Matcher colM = COLOR_PATTERN.matcher(val);
+        if (colM.matches()) {
+            String[] parts = colM.group(1).split(",");
+            return "[" + Arrays.stream(parts).map(this::cleanFloat).collect(Collectors.joining(",")) + "]";
+        }
+
+        // 5. Transform3D - aggressive shrink
+        if (val.startsWith("Transform3D")) {
+            Matcher transM = TRANSFORM_PATTERN.matcher(val);
+            if (transM.find()) {
+                String[] p = transM.group(1).split(",");
+                // If rotation/scale is identity (approx), just show Pos
+                if (p.length == 12) {
+                    // 9, 10, 11 are pos x, y, z
+                    return "[" + cleanFloat(p[9]) + "," + cleanFloat(p[10]) + "," + cleanFloat(p[11]) + "]";
+                }
+            }
+            return "Xt(...)";
+        }
+
+        // 6. Strings & Numbers
+        if (val.startsWith("\"")) return val;
+        try {
+            Double.parseDouble(val);
+            return cleanFloat(val);
+        } catch (NumberFormatException e) {
+            return val;
+        }
+    }
+
     private String formatSubResourceInline(GdNode node) {
         StringBuilder sb = new StringBuilder();
+        // Use Type Abbreviation
         sb.append(abbreviateType(node.type)).append("{");
+
         List<String> p = new ArrayList<>();
         for (var entry : node.properties.entrySet()) {
-            p.add(shortenKey(entry.getKey()) + ":" + formatValue(entry.getValue()));
+            String k = shortenKey(entry.getKey());
+            // RECURSIVE call to handle nested sub-resources
+            String v = formatValue(entry.getValue());
+            p.add(k + ":" + v);
         }
         sb.append(String.join(",", p));
         sb.append("}");
@@ -347,62 +389,11 @@ public class GodotCompactConverter {
         return key;
     }
 
-    private String formatValue(String val) {
-        if (val == null) return "null";
-
-        // Handle ExtResource Alias
-        String extId = extractExtResourceId(val);
-        if (extId != null && extResourceAliases.containsKey(extId)) {
-            return extResourceAliases.get(extId);
-        }
-
-        // Vectors [x, y, z]
-        Matcher vecM = VECTOR_PATTERN.matcher(val);
-        if (vecM.matches()) {
-            String[] parts = vecM.group(2).split(",");
-            return "[" + Arrays.stream(parts).map(this::cleanFloat).collect(Collectors.joining(",")) + "]";
-        }
-
-        // Colors [r, g, b, a]
-        Matcher colM = COLOR_PATTERN.matcher(val);
-        if (colM.matches()) {
-            String[] parts = colM.group(1).split(",");
-            return "[" + Arrays.stream(parts).map(this::cleanFloat).collect(Collectors.joining(",")) + "]";
-        }
-
-        // Transform3D - aggressively simplify
-        if (val.startsWith("Transform3D")) {
-            Matcher transM = TRANSFORM_PATTERN.matcher(val);
-            if (transM.find()) {
-                String[] p = transM.group(1).split(",");
-                // Extract only position if rotation/scale is identity
-                if (p.length == 12) {
-                    // 9, 10, 11 are pos x, y, z
-                    return "[" + cleanFloat(p[9]) + "," + cleanFloat(p[10]) + "," + cleanFloat(p[11]) + "]";
-                }
-            }
-            return "Xt(...)";
-        }
-
-        // Strings
-        if (val.startsWith("\"")) return val;
-
-        // Numbers
-        try {
-            float f = Float.parseFloat(val);
-            return cleanFloat(val); // It's a number
-        } catch (NumberFormatException e) {
-            // It's an enum or string constant
-            return val;
-        }
-    }
-
     private String cleanFloat(String numStr) {
         try {
             double d = Double.parseDouble(numStr.trim());
             if (d == 0) return "0";
             if (d == 1) return "1";
-            // Check if integer
             if (d == Math.floor(d) && !Double.isInfinite(d)) {
                 return String.valueOf((int)d);
             }
