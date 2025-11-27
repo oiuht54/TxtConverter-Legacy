@@ -1,3 +1,4 @@
+
 # TxtConverter
 
 [🇷🇺 Читать на русском](#-txtconverter-ru)
@@ -24,17 +25,22 @@ The application fully supports **English** and **Russian** languages.
 
 ## 🔥 Key Features
 
-### 🚀 Smart Automation & UX (New!)
+### 🧠 Advanced AI Optimization & Compression
+*   **Godot Engine Special Mode (Unique!):**
+    *   Includes a specialized parser for `.tscn` and `.tres` files.
+    *   Intelligently abbreviates verbose class names (e.g., `MeshInstance3D` → `Mesh`, `CollisionShape3D` → `ColShape`).
+    *   Groups repetitive nodes (e.g., `Tree_01` ... `Tree_50` → `@Repeated(50) "Mesh"`).
+    *   **Result:** Reduces file size in tokens by **70-75%** while keeping the full logic understandable for LLMs.
+*   **General Token Compression:**
+    *   **Smart:** Removes excessive empty lines to save vertical space.
+    *   **Maximum:** Removes all comments (`//`, `/*`, `#`) and formatting, turning code into a flat list of commands to maximize context window efficiency.
+*   **Smart Merging:** You can choose which files to include **fully** and which to keep as **stubs**.
+    *   *Example:* If a file is found but not selected for merging, the report will contain: `(File content omitted for brevity...)`. This gives the AI context about the file's existence without wasting tokens.
+
+### 🚀 Smart Automation & UX
 *   **Drag & Drop:** Simply drag your project folder into the application window to start.
 *   **Auto-Detection:** The app automatically analyzes project files (e.g., `package.json`, `pom.xml`, `project.godot`) and selects the correct Preset for you.
 *   **Smart Persistence:** The app remembers your last used folder, settings, and window position.
-
-### 🧠 Optimization for LLMs (AI)
-*   **Token Compression:**
-    *   **Smart:** Removes excessive empty lines.
-    *   **Maximum:** Removes all comments and formatting, turning code into a flat list of commands to save maximum tokens.
-*   **Smart Merging:** You can choose which files to include **fully** and which to keep as **stubs**.
-    *   *Example:* If a file is found but not selected for merging, the report will contain: `(File content omitted for brevity...)`. This gives the AI context about the file's existence without wasting tokens on its content.
 
 ### ⚡ Performance & Safety
 *   **Turbo Scanning:** Optimized algorithm (`walkFileTree`) instantly skips massive ignored folders (like `node_modules` or `.git`), making scanning 100x faster for Web/Node.js projects.
@@ -42,7 +48,8 @@ The application fully supports **English** and **Russian** languages.
 
 ### ⚙️ Flexibility
 *   **Presets:** Ready-made settings for:
-    *   **Unity Engine** / **Godot Engine**
+    *   **Godot Engine** (with dedicated .tscn optimizer)
+    *   **Unity Engine**
     *   **Java (Maven/Gradle)**
     *   **Web (TypeScript/React)** / **Web (JavaScript/Legacy)**
     *   **Python**
@@ -56,10 +63,11 @@ The application fully supports **English** and **Russian** languages.
 2.  (First time only) Select your language.
 3.  **Drag & Drop** your project folder into the window (or click "Select...").
 4.  The app will try to **Auto-Detect** the preset. If needed, change it manually.
-5.  Click **"Rescan"** (if not triggered automatically).
-6.  (Optional) Click **"Select Files..."** to check only the scripts you need in full.
-7.  Click the big blue button **"START CONVERSION"**.
-8.  Once done, check the created `_ConvertedToTxt` folder.
+5.  Select **"Maximum"** compression level to enable the Godot optimizer (if using a Godot project).
+6.  Click **"Rescan"** (if not triggered automatically).
+7.  (Optional) Click **"Select Files..."** to check only the scripts you need in full.
+8.  Click the big blue button **"START CONVERSION"**.
+9.  Once done, check the created `_ConvertedToTxt` folder.
 
 ---
 
@@ -87,7 +95,7 @@ The ready-to-use application will be in: `target/jpackage/TxtConverter/`
 
 **TxtConverter** — это профессиональная десктопная утилита для быстрой и безопасной подготовки исходного кода проектов к анализу нейросетями (LLM), архивации или отправке в чаты.
 
-Приложение сканирует папку проекта и создает оптимизированный единый текстовый файл, который удобно "скармливать" ChatGPT, Claude или DeepSeek.
+Приложение сканирует папку проекта и создает оптимизированный единый текстовый файл, который удобно "скармливать" ChatGPT, Claude, Gemini или DeepSeek.
 
 ---
 
@@ -99,23 +107,28 @@ The ready-to-use application will be in: `target/jpackage/TxtConverter/`
 
 ## 🔥 Ключевые возможности
 
-### 🚀 Автоматизация и Удобство (New!)
+### 🧠 Продвинутая оптимизация для LLM (ИИ)
+*   **Специальный режим Godot Engine (Эксклюзив!):**
+    *   Встроенный парсер для `.tscn` и `.tres` файлов.
+    *   Умно сокращает длинные имена классов (напр., `MeshInstance3D` → `Mesh`, `NavigationAgent3D` → `NavAgent`).
+    *   Группирует сотни повторяющихся объектов в одну строку (напр., `@Repeated(50) "StaticBody"`).
+    *   **Результат:** Экономия токенов достигает **70-75%**, сохраняя при этом логику сцены понятной для нейросети.
+*   **Сжатие токенов:**
+    *   **Умное:** Удаляет лишние пустые строки.
+    *   **Максимум:** Удаляет комментарии и форматирование, максимально экономя контекст.
+*   **Умное слияние:** Выбор файлов, которые нужны **полностью**, и файлов, которые нужны только как **заглушки** (для контекста).
+
+### 🚀 Автоматизация и Удобство
 *   **Drag & Drop:** Просто перетащите папку проекта в окно программы.
 *   **Авто-определение:** Приложение само находит ключевые файлы (`project.godot`, `pom.xml`, `package.json` и др.) и выставляет нужный пресет.
 *   **Сохранение настроек:** Программа запоминает последнюю папку, пресет и галочки настроек.
-
-### 🧠 Оптимизация для LLM (ИИ)
-*   **Сжатие токенов:**
-    *   **Умное:** Удаляет лишние пустые строки.
-    *   **Максимум:** Удаляет комментарии и форматирование, максимально экономя контекст нейросети.
-*   **Умное слияние:** Выбор файлов, которые нужны **полностью**, и файлов, которые нужны только как **заглушки** (для контекста).
 
 ### ⚡ Производительность
 *   **Турбо-сканирование:** Новый алгоритм мгновенно пропускает тяжелые папки (вроде `node_modules`), ускоряя работу с Web-проектами в сотни раз.
 *   **Безопасность:** Результаты сохраняются в отдельную папку `_ConvertedToTxt`, исходники не затрагиваются.
 
 ### ⚙️ Пресеты
-*   **GameDev:** Unity, Godot.
+*   **GameDev:** Unity, Godot (с оптимизатором сцен).
 *   **Web:** TypeScript (Modern), JavaScript (Classic).
 *   **Backend:** Java, Python.
 
@@ -126,8 +139,9 @@ The ready-to-use application will be in: `target/jpackage/TxtConverter/`
 1.  Запустите `TxtConverter.exe`.
 2.  **Перетащите папку** проекта в окно (или нажмите "Выбрать...").
 3.  Приложение автоматически определит тип проекта (Пресет).
-4.  Нажмите **"Начать конвертацию"**.
-5.  Заберите готовый файл в папке `_ConvertedToTxt`.
+4.  Для Godot-проектов выберите уровень сжатия **"Максимум"**, чтобы включить умный парсер сцен.
+5.  Нажмите **"Начать конвертацию"**.
+6.  Заберите готовый файл в папке `_ConvertedToTxt`.
 
 ---
 
