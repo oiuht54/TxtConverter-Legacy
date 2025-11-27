@@ -1,7 +1,6 @@
 package TartarusCore.TxtConverter;
 
 import javafx.concurrent.Task;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -13,17 +12,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * Задача для копирования файлов и генерации отчетов.
- *
- * V4 Update (Stability Fix):
- * - MAXIMUM Compression: Отключено удаление инлайн-комментариев ("хвостов"), так как это ломает
- *   строковые литералы (Hex-цвета, URL, атрибуты C#).
- * - Теперь удаляются только БЛОЧНЫЕ комментарии и ПОЛНЫЕ строки-комментарии.
- * - Сплющивание (удаление отступов) работает для C-подобных языков.
- */
 public class ConverterTask extends Task<Void> {
-
     private final String sourceDirPath;
     private final List<Path> filesToProcess;
     private final Set<Path> filesSelectedForMerge;
@@ -32,12 +21,9 @@ public class ConverterTask extends Task<Void> {
     private final boolean compactMode;
     private final CompressionLevel compressionLevel;
     private final boolean generateMergedFile;
-
     private final ResourceBundle bundle;
 
     private static final int COLLAPSE_THRESHOLD = 5;
-
-    // Паттерн для удаления блочных комментариев /* ... */
     private static final Pattern BLOCK_COMMENT_PATTERN = Pattern.compile("/\\*[\\s\\S]*?\\*/");
 
     public ConverterTask(String sourceDirPath, List<Path> filesToProcess,
@@ -67,7 +53,6 @@ public class ConverterTask extends Task<Void> {
         updateMessage(loc("task.preparing"));
         Path sourcePath = Paths.get(sourceDirPath);
         Path outputPath = sourcePath.resolve(ProjectConstants.OUTPUT_DIR_NAME);
-
         prepareOutputDirectory(outputPath);
 
         Map<Path, Path> processedFilesMap = new LinkedHashMap<>();
@@ -76,7 +61,6 @@ public class ConverterTask extends Task<Void> {
 
         for (Path sourceFile : filesToProcess) {
             if (isCancelled()) break;
-
             processedCount++;
             updateProgress(processedCount, totalFiles);
             updateMessage(String.format(loc("task.processing"), sourceFile.getFileName()));
@@ -85,12 +69,20 @@ public class ConverterTask extends Task<Void> {
             String destFileName = sourceFileName.toLowerCase().endsWith(".md") ? sourceFileName : sourceFileName + ".txt";
             Path destFile = outputPath.resolve(destFileName);
 
-            // СЖАТИЕ КОДА
+            // CHANGED LOGIC HERE
             if (compressionLevel != CompressionLevel.NONE && !sourceFileName.toLowerCase().endsWith(".md")) {
                 try {
                     String content = Files.readString(sourceFile, StandardCharsets.UTF_8);
-                    // Передаем путь, чтобы определить расширение файла
-                    String compressedContent = applyCompression(content, sourceFile);
+
+                    // Logic: If MAXIMUM level AND it is a Godot file -> Use Special Converter
+                    // Otherwise -> Use standard compression
+                    String compressedContent;
+                    if (compressionLevel == CompressionLevel.MAXIMUM && isGodotFile(sourceFileName)) {
+                        compressedContent = GodotCompactConverter.convert(content, sourceFileName);
+                    } else {
+                        compressedContent = applyCompression(content, sourceFile);
+                    }
+
                     Files.writeString(destFile, compressedContent, StandardCharsets.UTF_8);
                 } catch (IOException e) {
                     Files.copy(sourceFile, destFile, StandardCopyOption.REPLACE_EXISTING);
@@ -98,7 +90,6 @@ public class ConverterTask extends Task<Void> {
             } else {
                 Files.copy(sourceFile, destFile, StandardCopyOption.REPLACE_EXISTING);
             }
-
             processedFilesMap.put(sourceFile, destFile);
         }
 
@@ -117,7 +108,10 @@ public class ConverterTask extends Task<Void> {
         return null;
     }
 
-    // --- ЛОГИКА СЖАТИЯ КОДА ---
+    private boolean isGodotFile(String fileName) {
+        String lower = fileName.toLowerCase();
+        return lower.endsWith(".tscn") || lower.endsWith(".tres");
+    }
 
     private String applyCompression(String content, Path file) {
         if (compressionLevel == CompressionLevel.MAXIMUM) {
@@ -129,14 +123,12 @@ public class ConverterTask extends Task<Void> {
     }
 
     private String compressSmart(String content) {
-        // Просто удаляем лишние пустые строки (оставляем абзацы)
         return content.replaceAll("(\\r?\\n){3,}", "\n\n").trim();
     }
 
     private String compressMax(String content, Path file) {
-        // 1. Удаляем блочные комментарии (Java, C#, CSS, TS)
+        // Standard max compression for non-Godot files
         content = BLOCK_COMMENT_PATTERN.matcher(content).replaceAll("");
-
         String[] lines = content.split("\\R");
         StringBuilder sb = new StringBuilder(content.length() / 2);
 
@@ -144,22 +136,12 @@ public class ConverterTask extends Task<Void> {
 
         for (String line : lines) {
             String trimmed = line.trim();
-
-            // 2. Удаляем пустые строки
             if (trimmed.isEmpty()) continue;
-
-            // 3. Удаляем ТОЛЬКО полные строки-комментарии.
-            // Мы НЕ трогаем строки, где комментарий начинается в середине (var c = "#fff"),
-            // так как отличить код от данных без лексера невозможно.
             if (trimmed.startsWith("//") || trimmed.startsWith("#")) continue;
 
-            // 4. Обработка отступов
             if (isSensitive) {
-                // Для Python/GDScript/YAML: Оставляем отступ слева, удаляем справа
                 sb.append(stripTrailing(line)).append("\n");
             } else {
-                // Для C#/Java/JS: Полный trim (удаляем отступ слева -> Flat Code)
-                // Это безопасно экономит токены, не ломая данные внутри строк
                 sb.append(trimmed).append("\n");
             }
         }
@@ -182,8 +164,6 @@ public class ConverterTask extends Task<Void> {
         return str.substring(0, len);
     }
 
-    // --- ОСТАЛЬНОЕ ---
-
     private void prepareOutputDirectory(Path outputPath) throws IOException {
         if (Files.exists(outputPath)) {
             try (var stream = Files.walk(outputPath)) {
@@ -198,7 +178,6 @@ public class ConverterTask extends Task<Void> {
     private void generateDeepStructureReport(Path outputPath, Path rootPath) throws IOException {
         Path reportFile = outputPath.resolve(ProjectConstants.REPORT_STRUCTURE_FILE);
         StringBuilder report = new StringBuilder();
-
         report.append(loc("report.structure_header")).append("\n");
         report.append(String.format(loc("report.generated_date"),
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))).append("\n\n");
@@ -209,7 +188,6 @@ public class ConverterTask extends Task<Void> {
             report.append("- `[ S ]` Stub: File included as a stub.\n\n");
             report.append("```text\n");
         } else {
-            // Для сжатых режимов не нужна легенда и блок кода (экономим токены)
             if (compressionLevel == CompressionLevel.MAXIMUM) {
                 report.append("(Flat Structure Mode)\n");
             } else {
@@ -217,14 +195,12 @@ public class ConverterTask extends Task<Void> {
             }
         }
 
-        // Корень
         if (compressionLevel != CompressionLevel.MAXIMUM) {
             report.append(compressionLevel == CompressionLevel.SMART ? rootPath.getFileName() + "/" : "[ROOT] " + rootPath.getFileName()).append("\n");
         }
 
         Set<Path> processedSet = new HashSet<>(filesToProcess);
 
-        // Если MAX - используем плоский список, иначе дерево
         if (compressionLevel == CompressionLevel.MAXIMUM) {
             generateFlatStructure(rootPath, report, processedSet);
         } else {
@@ -233,27 +209,19 @@ public class ConverterTask extends Task<Void> {
         }
 
         if (compressionLevel == CompressionLevel.NONE) report.append("```\n");
-
         Files.writeString(reportFile, report.toString(), StandardCharsets.UTF_8);
     }
 
-    // Новая логика для MAX структуры: Плоский список путей
-    // dir/subdir/file.ext
     private void generateFlatStructure(Path currentDir, StringBuilder sb, Set<Path> processedSet) {
         try (Stream<Path> stream = Files.walk(currentDir)) {
             stream.filter(Files::isRegularFile)
                     .filter(p -> shouldIncludeInStructure(p, currentDir))
                     .forEach(p -> {
-                        // Если compactMode включен, показываем только обработанные
                         if (compactMode && !processedSet.contains(p)) return;
-
-                        // Получаем относительный путь
                         String relPath = currentDir.relativize(p).toString().replace('\\', '/');
-
                         if (processedSet.contains(p)) {
                             sb.append(relPath).append("\n");
                         } else {
-                            // Игнорируемые файлы в плоском списке (если Compact выключен)
                             sb.append(relPath).append(" [ignore]\n");
                         }
                     });
@@ -347,10 +315,9 @@ public class ConverterTask extends Task<Void> {
     private void generateMergedFile(Path outputPath, Map<Path, Path> processedFilesMap) throws IOException {
         String projectName = Paths.get(sourceDirPath).getFileName().toString();
         String outputFileName = "_" + projectName + ProjectConstants.MERGED_FILE_SUFFIX;
-
         Path mergedFile = outputPath.resolve(outputFileName);
-        StringBuilder mergedContent = new StringBuilder();
 
+        StringBuilder mergedContent = new StringBuilder();
         if (compressionLevel != CompressionLevel.NONE) {
             mergedContent.append("# Project: ").append(projectName).append("\n\n");
         } else {
