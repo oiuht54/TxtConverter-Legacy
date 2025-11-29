@@ -8,11 +8,6 @@
 
 ---
 
-# TxtConverter (Java Legacy)
-
-<br>
-<br>
-
 <a id="ru-legacy"></a>
 # 🇷🇺 TxtConverter (Архив)
 
