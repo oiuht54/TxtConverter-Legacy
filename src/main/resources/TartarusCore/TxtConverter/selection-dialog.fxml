@@ -1,25 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.TreeView?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
-
 <VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="TartarusCore.TxtConverter.SelectionController"
-      spacing="10" prefWidth="550" prefHeight="600" styleClass="root">
-
-    <!-- >>> НОВАЯ ПАНЕЛЬ ЗАГОЛОВКА ДЛЯ ПЕРЕТАСКИВАНИЯ <<< -->
+      spacing="10" prefWidth="600" prefHeight="700" styleClass="root">
+    <!-- ПАНЕЛЬ ЗАГОЛОВКА -->
     <HBox fx:id="titleBar" alignment="CENTER_LEFT" spacing="10" styleClass="custom-title-bar">
         <padding>
             <Insets left="10.0"/>
         </padding>
-        <Label text="Выбор файлов для отчета" styleClass="title-label"/>
+        <Label text="Выбор файлов" styleClass="title-label"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <!-- Кнопка закрытия окна теперь управляется из контроллера -->
         <Button onAction="#handleCancel" styleClass="window-button,close-button" text="X"/>
     </HBox>
 
@@ -28,14 +25,22 @@
             <Insets top="10" right="15" bottom="15" left="15"/>
         </padding>
 
+        <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
         <HBox spacing="10" alignment="CENTER_LEFT">
+            <Label text="Группировка:"/>
+            <ComboBox fx:id="viewModeComboBox" prefWidth="150"/>
+            <Region HBox.hgrow="ALWAYS"/>
             <Button text="Выбрать все" onAction="#handleSelectAll"/>
-            <Button text="Снять выделение со всех" onAction="#handleDeselectAll"/>
+            <Button text="Снять все" onAction="#handleDeselectAll"/>
         </HBox>
 
+        <!-- ДЕРЕВО ФАЙЛОВ -->
         <TreeView fx:id="fileTreeView" VBox.vgrow="ALWAYS"/>
 
+        <!-- НИЖНЯЯ ПАНЕЛЬ -->
         <HBox spacing="10" alignment="CENTER_RIGHT">
+            <Label fx:id="infoLabel" text="Выбрано: 0" textFill="#888888"/>
+            <Region HBox.hgrow="ALWAYS"/>
             <Button text="Отмена" onAction="#handleCancel" cancelButton="true"/>
             <Button fx:id="confirmButton" text="Подтвердить" onAction="#handleConfirm" defaultButton="true"/>
         </HBox>
