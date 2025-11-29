@@ -10,22 +10,6 @@
 
 # TxtConverter (Java Legacy)
 
-[🇷🇺 Читать на русском](#ru-legacy)
-
-**TxtConverter** is a utility designed to prepare project source code for analysis by Neural Networks (LLMs).
-*This is the old JavaFX implementation.*
-
-### Requirements
-*   JDK 21+
-*   Apache Maven
-
-### Build Commands
-```bash
-mvn clean package
-```
-
----
-
 <br>
 <br>
 
