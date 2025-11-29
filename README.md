@@ -21,3 +21,8 @@
 
 **TxtConverter** — утилита для подготовки кода к анализу нейросетями.
 *Это устаревшая версия на JavaFX.*
+
+<p align="center">
+  <img src="docs/screenshot_en.png" width="48%" alt="English Interface" />
+  <img src="docs/screenshot_ru.png" width="48%" alt="Russian Interface" />
+</p>
